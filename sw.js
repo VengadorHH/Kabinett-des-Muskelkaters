@@ -1,11 +1,12 @@
 /* Service Worker: App offline verfügbar halten */
-const VERSION = "muskelkater-v1";
+const VERSION = "muskelkater-v9";
 const SCHALE = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
   "./icon-192.png",
   "./icon-512.png",
+  "./icon-maskable-512.png",
   "./apple-touch-icon.png",
   "https://cdn.tailwindcss.com",
   "https://unpkg.com/react@18/umd/react.production.min.js",
