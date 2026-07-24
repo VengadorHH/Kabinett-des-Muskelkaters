@@ -1,72 +1,4 @@
-<!DOCTYPE html>
-<html lang="de">
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="robots" content="noindex, nofollow" />
-<title>Kabinett des Muskelkaters</title>
-<meta name="theme-color" content="#DCDFDB" />
-<meta name="mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-capable" content="yes" />
-<meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Muskelkater" />
-<link rel="manifest" href="./manifest.webmanifest" />
-<link rel="apple-touch-icon" href="./apple-touch-icon.png" />
-<link rel="icon" href="./icon-192.png" />
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-<script src="https://unpkg.com/@babel/standalone@7/babel.min.js" crossorigin></script>
-<style>
-  html, body { margin: 0; background: #DCDFDB; -webkit-text-size-adjust: 100%; }
-  body { padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
-  #laedt { font-family: system-ui, sans-serif; padding: 24px; color: #7C837E; }
-</style>
-</head>
-<body>
-<div id="root"><p id="laedt">Kabinett des Muskelkaters wird geladen …</p></div>
-
-<script>
-/* Speicher: gleiche Schnittstelle wie im Artefakt, hier auf localStorage */
-(function () {
-  var P = "muskelkater:";
-  window.storage = {
-    get: function (k) {
-      return new Promise(function (res, rej) {
-        var v = localStorage.getItem(P + k);
-        if (v === null) rej(new Error("nicht vorhanden")); else res({ key: k, value: v });
-      });
-    },
-    set: function (k, v) {
-      return new Promise(function (res, rej) {
-        try { localStorage.setItem(P + k, v); res({ key: k, value: v }); } catch (e) { rej(e); }
-      });
-    },
-    delete: function (k) {
-      return new Promise(function (res) { localStorage.removeItem(P + k); res({ key: k, deleted: true }); });
-    },
-    list: function (prefix) {
-      return new Promise(function (res) {
-        var raus = [];
-        for (var i = 0; i < localStorage.length; i++) {
-          var s = localStorage.key(i);
-          if (s.indexOf(P) === 0) { var k = s.slice(P.length); if (!prefix || k.indexOf(prefix) === 0) raus.push(k); }
-        }
-        res({ keys: raus });
-      });
-    }
-  };
-  if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function () {
-      navigator.serviceWorker.register("./sw.js").catch(function () {});
-    });
-  }
-})();
-</script>
-
-<script type="text/babel" data-presets="react">
-const { useState, useEffect, useMemo, useRef } = React;
-
+import React, { useState, useEffect, useMemo, useRef } from "react";
 
 /* ============ Tokens ============ */
 const C = {
@@ -425,7 +357,7 @@ const katalogStart = () => [
 ].map(([name, geraet, kg, wdh, mus]) => ({ id: uid(), name, geraet, kg, wdh, muskeln: m(mus) }));
 
 /* ============ App ============ */
-function App() {
+export default function App() {
   const [tab, setTab] = useState("plaene");
   const [plaene, setPlaene] = useState([]);
   const [verlauf, setVerlauf] = useState([]);
@@ -1928,9 +1860,3 @@ function Bilanz({ verlauf }) {
     </div>
   );
 }
-
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
-</script>
-</body>
-</html>
