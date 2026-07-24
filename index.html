@@ -79,13 +79,15 @@ const GRUPPEN = [
   { id: "core", name: "Core", farbe: C.rot },
   { id: "schulter", name: "Schulter", farbe: C.blau },
   { id: "arme", name: "Arme", farbe: C.chrom },
-  { id: "ruecken", name: "Rücken/Brust", farbe: C.gruen },
+  { id: "ruecken", name: "Rücken", farbe: C.gruen },
+  { id: "brust", name: "Brust", farbe: C.tuerkis },
   { id: "beine", name: "Beine", farbe: C.gelb },
   { id: "kardio", name: "Kardio", farbe: C.violett },
 ];
 const leereMuskeln = () => Object.fromEntries(GRUPPEN.map((g) => [g.id, 0]));
 const SEK_PRO_WDH = 3;
-const GERAETE = ["Kettlebell", "Langhantel", "Kurzhantel", "Maschine", "Kabelzug", "Klimmzugstange", "Bank", "Matte", "Körpergewicht"];
+const GERAETE = ["Langhantel", "Kurzhantel", "Kettlebell", "Seilzug", "Maschine", "Körpergewicht",
+  "Klimmzugstange", "Bank", "Matte", "Medizinball", "Schlitten", "Springseil", "Laufband", "Ergometer", "Crosstrainer"];
 
 const FONTS = `
 @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;600&display=swap');
@@ -120,19 +122,26 @@ function sekundenGeplant(block, u) {
   return zahl(u.saetze) * zahl(u.wdh) * SEK_PRO_WDH;
 }
 
-/* Verteilung: {gruppe: sekunden} */
-function verteilung(bloecke, sekFn) {
+/* Verteilung: gemessene oder geplante Blockzeit auf die Muskelgruppen verteilen.
+   Die Zeit eines Blocks wird nach dem geplanten Umfang seiner Übungen aufgeteilt. */
+const geplantBlock = (b) => (b?.uebungen || []).reduce((a, u) => a + sekundenGeplant(b, u), 0);
+
+function verteilung(bloecke, zeitFn) {
   const v = leereMuskeln();
   let gesamt = 0;
   (Array.isArray(bloecke) ? bloecke : []).forEach((b) => {
     if (!b.auswerten) return;
-    (b.uebungen || []).forEach((u) => {
-      const sek = sekFn(b, u);
-      if (!sek) return;
+    const zeit = zahl(zeitFn(b));
+    if (zeit <= 0) return;
+    const uebungen = b.uebungen || [];
+    const gewicht = uebungen.map((u) => sekundenGeplant(b, u) || 1);
+    const gsum = gewicht.reduce((a, x) => a + x, 0) || 1;
+    uebungen.forEach((u, i) => {
+      const anteil = (zeit * gewicht[i]) / gsum;
       const summe = GRUPPEN.reduce((a, g) => a + zahl(u.muskeln?.[g.id]), 0) || 1;
-      GRUPPEN.forEach((g) => { v[g.id] += (sek * zahl(u.muskeln?.[g.id])) / summe; });
-      gesamt += sek;
+      GRUPPEN.forEach((g) => { v[g.id] += (anteil * zahl(u.muskeln?.[g.id])) / summe; });
     });
+    gesamt += zeit;
   });
   return { v, gesamt };
 }
@@ -183,6 +192,44 @@ const Karte = ({ children, className = "" }) => (
 );
 
 /* ============ Auswertung (Signature) ============ */
+function Kreis({ reihen, groesse = 128, beschriftet = true }) {
+  const R = groesse / 2, rad = R - 1;
+  const punkt = (winkel) => [R + rad * Math.cos(winkel), R + rad * Math.sin(winkel)];
+  const gesamtP = reihen.reduce((a, x) => a + x.p, 0) || 1;
+
+  let acc = -Math.PI / 2;
+  const stuecke = [], schrift = [];
+  reihen.forEach((s) => {
+    const bogen = (s.p / gesamtP) * 2 * Math.PI;
+    const bis = acc + bogen;
+    if (s.p / gesamtP > 0.999) {
+      stuecke.push(<circle key={s.id} cx={R} cy={R} r={rad} fill={s.farbe} />);
+    } else {
+      const [x1, y1] = punkt(acc), [x2, y2] = punkt(bis);
+      stuecke.push(
+        <path key={s.id} fill={s.farbe} stroke={C.panel} strokeWidth="1"
+          d={`M ${R} ${R} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${rad} ${rad} 0 ${bogen > Math.PI ? 1 : 0} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`} />
+      );
+    }
+    if (beschriftet && s.p >= 8) {
+      const mitte = acc + bogen / 2;
+      schrift.push(
+        <text key={s.id} x={R + 0.62 * rad * Math.cos(mitte)} y={R + 0.62 * rad * Math.sin(mitte) + 3.5}
+          textAnchor="middle" fontSize="10" fontFamily="monospace" fill="#fff">{Math.round(s.p)}%</text>
+      );
+    }
+    acc = bis;
+  });
+
+  return (
+    <svg width={groesse} height={groesse} viewBox={`0 0 ${groesse} ${groesse}`} className="shrink-0" role="img" aria-label="Verteilung">
+      {stuecke}
+      {schrift}
+      <circle cx={R} cy={R} r={rad} fill="none" stroke={C.tinte} strokeWidth="1" />
+    </svg>
+  );
+}
+
 function Auswertung({ v, gesamt, titel = "Muskelgewichtung", kompakt }) {
   if (!gesamt) return <p className="m text-xs" style={{ color: C.grau }}>Noch keine auswertbare Belastung.</p>;
   const reihen = GRUPPEN.map((g) => ({ ...g, sek: v[g.id], p: (v[g.id] / gesamt) * 100 }))
@@ -193,21 +240,19 @@ function Auswertung({ v, gesamt, titel = "Muskelgewichtung", kompakt }) {
         <h4 className="d uppercase text-sm">{titel}</h4>
         <span className="m text-[11px]" style={{ color: C.grau }}>{minuten(gesamt)} Arbeitszeit</span>
       </div>
-      <div className="flex h-3 mt-2" style={{ border: `1px solid ${C.tinte}` }}>
-        {reihen.map((r) => <div key={r.id} style={{ width: `${r.p}%`, background: r.farbe }} title={`${r.name} ${Math.round(r.p)}%`} />)}
-      </div>
-      {!kompakt && (
-        <ul className="mt-2 space-y-1">
+      <div className="flex items-center gap-3 mt-2">
+        <Kreis reihen={reihen} groesse={kompakt ? 96 : 128} beschriftet={!kompakt} />
+        <ul className="flex-1 min-w-0 space-y-1">
           {reihen.map((r) => (
             <li key={r.id} className="flex items-center gap-2">
-              <span style={{ width: 10, height: 10, background: r.farbe, display: "inline-block" }} />
-              <span className="b text-xs flex-1">{r.name}</span>
+              <span className="shrink-0" style={{ width: 10, height: 10, background: r.farbe, display: "inline-block" }} />
+              <span className="b text-xs flex-1 truncate">{r.name}</span>
               <span className="m text-xs">{Math.round(r.p)} %</span>
-              <span className="m text-[11px] w-14 text-right" style={{ color: C.grau }}>{minuten(r.sek)}</span>
+              {!kompakt && <span className="m text-[11px] w-12 text-right" style={{ color: C.grau }}>{minuten(r.sek)}</span>}
             </li>
           ))}
         </ul>
-      )}
+      </div>
     </div>
   );
 }
@@ -266,23 +311,6 @@ function normPlan(p) {
   };
 }
 
-const vorlageCardio = () => ({
-  id: uid(), name: "Cardio 20", notiz: "Ergänzung zum Krafttraining · 5 × 2 min zügig, 1 min locker · Gerät frei wählbar",
-  bloecke: [
-    { id: uid(), typ: "standard", name: "Aufwärmen", auswerten: false, uebungen: [
-      { id: uid(), name: "Locker starten, leichtes Tempo", geraet: "Bike / Laufband / draußen", messung: "zeit", saetze: 1, dauer: 180, wdh: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ kardio: 100 }) },
-      { id: uid(), name: "Hüfte & Sprunggelenk lockern", geraet: "Körpergewicht", messung: "zeit", saetze: 1, dauer: 60, wdh: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ beine: 100 }) },
-    ]},
-    { id: uid(), typ: "intervall", name: "5 × 2 min zügig", auswerten: true, arbeit: 120, pause: 60, durchgaenge: 5, satzpause: 60, uebungen: [
-      { id: uid(), name: "Zügig: Puls hoch", geraet: "Bike / Laufband / draußen", kg: 0, saetzeListe: [], muskeln: m({ kardio: 75, beine: 25 }) },
-    ]},
-    { id: uid(), typ: "standard", name: "Abwärmen", auswerten: false, uebungen: [
-      { id: uid(), name: "Langsam ausklingen lassen", geraet: "Bike / Laufband / draußen", messung: "zeit", saetze: 1, dauer: 120, wdh: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ kardio: 100 }) },
-      { id: uid(), name: "Wadendehnung", geraet: "Körpergewicht", messung: "zeit", saetze: 2, dauer: 30, wdh: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ beine: 100 }) },
-    ]},
-  ],
-});
-
 /* ============ Übungskatalog ============ */
 const katalogStart = () => [
   ["Figure 8", "Kettlebell", 12, 10, { core: 50, beine: 30, ruecken: 20 }],
@@ -296,17 +324,41 @@ const katalogStart = () => [
   ["Core Twist", "Kettlebell", 8, 20, { core: 90, arme: 10 }],
   ["Hollow Hold Bicycle", "Körpergewicht", 0, 20, { core: 100 }],
   ["Plank", "Matte", 0, 45, { core: 85, schulter: 15 }],
-  ["Bankdrücken", "Langhantel", 60, 8, { ruecken: 65, schulter: 20, arme: 15 }],
+  ["Liegestütze", "Körpergewicht", 0, 12, { brust: 55, arme: 25, schulter: 15, core: 5 }],
+  ["Kurzhantel-Fliegende", "Kurzhantel", 12, 12, { brust: 85, schulter: 15 }],
   ["Kniebeuge", "Langhantel", 80, 8, { beine: 75, core: 15, ruecken: 10 }],
   ["Kreuzheben", "Langhantel", 100, 5, { ruecken: 45, beine: 40, core: 15 }],
   ["Klimmzüge", "Klimmzugstange", 0, 8, { ruecken: 60, arme: 30, core: 10 }],
   ["Langhantelrudern", "Langhantel", 60, 10, { ruecken: 70, arme: 20, core: 10 }],
-  ["Schulterdrücken", "Kurzhantel", 30, 10, { schulter: 65, arme: 25, core: 10 }],
   ["Ausfallschritte", "Kurzhantel", 20, 12, { beine: 80, core: 20 }],
   ["Bird Dog", "Matte", 0, 10, { core: 80, ruecken: 20 }],
   ["Jumping Jacks", "Körpergewicht", 0, 60, { kardio: 100 }],
-  ["Zügig: Puls hoch", "Bike / Laufband / draußen", 0, 120, { kardio: 75, beine: 25 }],
-  ["Locker starten, leichtes Tempo", "Bike / Laufband / draußen", 0, 180, { kardio: 100 }],
+  ["Bankdrücken (LH)", "Langhantel", 50, 10, { brust: 65, schulter: 20, arme: 15 }],
+  ["Schrägbankdrücken (KH)", "Kurzhantel", 35, 10, { brust: 60, schulter: 25, arme: 15 }],
+  ["Butterfly (Maschine)", "Maschine", 60, 10, { brust: 85, schulter: 15 }],
+  ["Cable Flys", "Seilzug", 30, 10, { brust: 85, schulter: 15 }],
+  ["Überzüge (KH)", "Kurzhantel", 30, 10, { brust: 40, ruecken: 40, arme: 20 }],
+  ["Trizeps-Drücken einarmig", "Seilzug", 20, 10, { arme: 85, schulter: 15 }],
+  ["Trizeps-Seil", "Seilzug", 40, 12, { arme: 90, schulter: 10 }],
+  ["Trizeps Überkopf", "Seilzug", 30, 12, { arme: 90, schulter: 10 }],
+  ["Schulterdrücken (LH)", "Langhantel", 30, 10, { schulter: 65, arme: 25, core: 10 }],
+  ["Incline DB Rows", "Kurzhantel", 25, 10, { ruecken: 70, arme: 20, schulter: 10 }],
+  ["Low Row (einseitig)", "Seilzug", 55, 10, { ruecken: 70, arme: 20, core: 10 }],
+  ["Pull Down (Maschine)", "Maschine", 100, 10, { ruecken: 65, arme: 25, schulter: 10 }],
+  ["Face Pulls", "Seilzug", 35, 12, { schulter: 60, ruecken: 30, arme: 10 }],
+  ["Bizeps-Curls", "Kurzhantel", 12.5, 10, { arme: 90, schulter: 10 }],
+  ["Incline Laying Curls", "Kurzhantel", 15, 8, { arme: 95, schulter: 5 }],
+  ["Farmer Walk", "Kurzhantel", 50, 40, { arme: 30, ruecken: 30, core: 25, beine: 15 }],
+  ["Russian Twist", "Kurzhantel", 10, 20, { core: 90, arme: 10 }],
+  ["Cable Crunches", "Seilzug", 80, 15, { core: 100 }],
+  ["Holzhacker", "Seilzug", 40, 10, { core: 70, schulter: 20, ruecken: 10 }],
+  ["Seitliche Rotation", "Seilzug", 25, 10, { core: 85, schulter: 15 }],
+  ["Pallof Press", "Seilzug", 25, 10, { core: 85, schulter: 15 }],
+  ["Hyperextensions", "Maschine", 0, 15, { ruecken: 70, beine: 30 }],
+  ["Medizinball Situps", "Medizinball", 0, 15, { core: 100 }],
+  ["Flutter Kicks", "Matte", 0, 30, { core: 100 }],
+  ["Sledge Pull", "Schlitten", 10, 10, { beine: 40, ruecken: 30, core: 20, arme: 10 }],
+  ["Crosstrainer", "Crosstrainer", 0, 300, { kardio: 80, beine: 20 }],
   ["Springseil", "Springseil", 0, 60, { kardio: 70, beine: 20, schulter: 10 }],
   ["Burpees", "Körpergewicht", 0, 10, { kardio: 55, beine: 20, ruecken: 15, schulter: 10 }],
   ["Bergsprint / Steigung", "Laufband", 0, 30, { kardio: 60, beine: 40 }],
@@ -380,9 +432,11 @@ function App() {
       <style>{FONTS}</style>
       {!session && (
         <header className="px-4 pt-5 pb-3" style={{ borderBottom: `2px solid ${C.tinte}` }}>
-          <div className="flex items-end justify-between">
-            <h1 className="d text-3xl uppercase leading-none">Eisenplan</h1>
-            <span className="m text-[11px]" style={{ color: C.grau }}>{plaene.length} Pläne · {verlauf.length} Einheiten</span>
+          <div>
+            <h1 className="d text-2xl uppercase leading-none">Kabinett des Muskelkaters</h1>
+            <span className="m text-[11px] block mt-1" style={{ color: C.grau }}>
+              {plaene.length} Pläne · {verlauf.length} Einheiten
+            </span>
           </div>
           <nav className="flex gap-1 mt-4">
             {[["plaene", "Pläne"], ["uebungen", "Übungen"], ["training", "Training"], ["verlauf", "Bilanz"]].map(([k, l]) => (
@@ -401,10 +455,11 @@ function App() {
           : session ? <Einheit session={session} setSession={setSession}
               beenden={(e) => { sichern("verlauf2", [e, ...verlauf].slice(0, 300), setVerlauf); setSession(null); setTab("verlauf"); }} />
           : offen ? <Editor plan={offen} katalog={katalog} katalogSichern={katalogSichern}
-              sichern={(p) => { planSichern(p); setOffen(null); }} zurueck={() => setOffen(null)} />
-          : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen} weg={planWeg}
-              vorlage={() => planSichern(vorlageKettlebell())} vorlageZwei={() => planSichern(vorlageCardio())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} />
-          : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} />
+              sichern={(p) => { planSichern(p); setOffen(null); }} zurueck={() => setOffen(null)}
+              weg={plaene.some((x) => x.id === offen.id) ? () => { planWeg(offen.id); setOffen(null); } : null} />
+          : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen}
+              vorlage={() => planSichern(vorlageKettlebell())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} />
+          : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} verlauf={verlauf} />
           : tab === "training" ? <Start plaene={plaene} starten={setSession} zuPlaenen={() => setTab("plaene")} />
           : <Bilanz verlauf={verlauf} />}
       </main>
@@ -486,20 +541,19 @@ function Daten({ sicherung, einspielen }) {
   );
 }
 
-function Plaene({ plaene, bearbeiten, weg, vorlage, vorlageZwei, sicherung, einspielen }) {
+function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen }) {
   const neu = () => bearbeiten({ id: uid(), name: "", notiz: "", bloecke: [] });
   return (
     <div>
       <p className="m text-[11px] mb-2" style={{ color: C.grau }}>Vorlagen</p>
       <div className="flex flex-wrap gap-2">
         <Btn ton="voll" onClick={neu}>+ Neuer Plan</Btn>
-        <Btn onClick={vorlage}>Suffering Sunday</Btn>
-        <Btn onClick={vorlageZwei}>Cardio 20</Btn>
+        <Btn onClick={vorlage}>Vorlage: Suffering Sunday</Btn>
       </div>
       <ul className="mt-4 space-y-2">
         {plaene.map((p) => {
           const bl = Array.isArray(p.bloecke) ? p.bloecke : [];
-          const { v, gesamt } = verteilung(bl, sekundenGeplant);
+          const { v, gesamt } = verteilung(bl, geplantBlock);
           return (
             <li key={p.id}><Karte>
               <div className="flex items-start justify-between gap-3">
@@ -511,7 +565,6 @@ function Plaene({ plaene, bearbeiten, weg, vorlage, vorlageZwei, sicherung, eins
                 </div>
                 <div className="flex gap-1 shrink-0">
                   <Btn klein onClick={() => bearbeiten(p)}>Ändern</Btn>
-                  <Btn klein ton="rot" onClick={() => weg(p.id)}>Löschen</Btn>
                 </div>
               </div>
               <div className="mt-3"><Auswertung v={v} gesamt={gesamt} titel="Geplante Gewichtung" /></div>
@@ -525,14 +578,15 @@ function Plaene({ plaene, bearbeiten, weg, vorlage, vorlageZwei, sicherung, eins
 }
 
 /* ============ Editor ============ */
-function Editor({ plan, sichern: save, zurueck, katalog, katalogSichern }) {
+function Editor({ plan, sichern: save, zurueck, weg, katalog, katalogSichern }) {
   const [p, setP] = useState(plan);
+  const [sicher, setSicher] = useState(false);
   const upd = (f, w) => setP({ ...p, [f]: w });
   const updBlock = (id, neu) => setP({ ...p, bloecke: p.bloecke.map((b) => (b.id === id ? neu : b)) });
   const addBlock = (typ) => setP({ ...p, bloecke: [...p.bloecke, {
     id: uid(), typ, name: typ === "leiter" ? "Leiter" : typ === "intervall" ? "Intervall" : typ === "einzel" ? "Einzelsätze" : "Block",
     auswerten: true, start: 10, ende: 1, schritt: 1, arbeit: 20, pause: 10, durchgaenge: 3, satzpause: 30, uebungen: [] }] });
-  const { v, gesamt } = verteilung(p.bloecke, sekundenGeplant);
+  const { v, gesamt } = verteilung(p.bloecke, geplantBlock);
 
   return (
     <div>
@@ -554,10 +608,23 @@ function Editor({ plan, sichern: save, zurueck, katalog, katalogSichern }) {
         <Btn klein onClick={() => addBlock("leiter")}>+ Leiter</Btn>
         <Btn klein onClick={() => addBlock("intervall")}>+ Intervall</Btn>
       </div>
-      <div className="flex gap-2 mt-4">
+      <div className="flex flex-wrap gap-2 mt-4">
         <Btn ton="voll" onClick={() => save(p)}>Plan sichern</Btn>
         <Btn onClick={zurueck}>Zurück</Btn>
+        {weg && <Btn ton="rot" onClick={() => setSicher(true)}>Plan löschen</Btn>}
       </div>
+      {sicher && (
+        <Karte className="mt-3">
+          <p className="b text-sm">„{p.name || "Ohne Namen"}“ wirklich löschen?</p>
+          <p className="m text-[11px] mt-1" style={{ color: C.grau }}>
+            Bereits absolvierte Einheiten bleiben in der Bilanz erhalten.
+          </p>
+          <div className="flex gap-2 mt-3">
+            <Btn klein ton="rot" onClick={weg}>Ja, löschen</Btn>
+            <Btn klein onClick={() => setSicher(false)}>Abbrechen</Btn>
+          </div>
+        </Karte>
+      )}
     </div>
   );
 }
@@ -702,11 +769,51 @@ function MuskelFelder({ muskeln, on }) {
 }
 
 /* ============ Katalogseite ============ */
-function Katalog({ katalog, sichern }) {
+function Katalog({ katalog, sichern, verlauf }) {
+  const rekorde = useMemo(() => {
+    const map = {};
+    (verlauf || []).forEach((e) => {
+      (e.leistung || []).forEach((l) => {
+        const best = (l.saetze || []).reduce((a, sz) => {
+          const kg = zahl(sz.kg);
+          if (kg > a.kg || (kg === a.kg && zahl(sz.wdh) > a.wdh)) return { kg, wdh: zahl(sz.wdh) };
+          return a;
+        }, { kg: 0, wdh: 0 });
+        if (best.kg <= 0) return;
+        const da = map[l.name];
+        if (!da || best.kg > da.kg || (best.kg === da.kg && new Date(e.datum) < new Date(da.datum))) {
+          map[l.name] = { kg: best.kg, wdh: best.wdh, datum: e.datum };
+        }
+      });
+    });
+    return map;
+  }, [verlauf]);
+  const prText = (name) => {
+    const r = rekorde[name];
+    if (!r) return null;
+    return `PR ${r.kg} kg × ${r.wdh} · ${new Date(r.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}`;
+  };
+
   const [q, setQ] = useState("");
   const [offen, setOffen] = useState(null);
-  const liste = (katalog || []).filter((k) => k.name.toLowerCase().includes(q.toLowerCase()))
-    .sort((a, b) => a.name.localeCompare(b.name, "de"));
+  const [sicher, setSicher] = useState(false);
+  const [filter, setFilter] = useState([]);
+  const [modus, setModus] = useState("beliebig");
+
+  const anteil = (k, id) => {
+    const summe = GRUPPEN.reduce((a, g) => a + zahl(k.muskeln?.[g.id]), 0) || 1;
+    return (zahl(k.muskeln?.[id]) / summe) * 100;
+  };
+  const trefferAnteil = (k) => filter.reduce((a, id) => a + anteil(k, id), 0);
+  const passt = (k) => {
+    if (!filter.length) return true;
+    return modus === "alle"
+      ? filter.every((id) => anteil(k, id) > 0)
+      : filter.some((id) => anteil(k, id) > 0);
+  };
+  const liste = (katalog || [])
+    .filter((k) => k.name.toLowerCase().includes(q.toLowerCase()) && passt(k))
+    .sort((a, b) => (filter.length ? trefferAnteil(b) - trefferAnteil(a) : a.name.localeCompare(b.name, "de")));
 
   const speichern = (k) => {
     sichern((katalog || []).some((x) => x.id === k.id) ? katalog.map((x) => (x.id === k.id ? k : x)) : [...(katalog || []), k]);
@@ -716,16 +823,40 @@ function Katalog({ katalog, sichern }) {
   if (offen) return (
     <div>
       <h2 className="d text-2xl uppercase">Übung</h2>
+      {sicher && (
+        <Karte className="mt-3">
+          <p className="b text-sm">„{offen.name}“ wirklich aus dem Katalog löschen?</p>
+          <p className="m text-[11px] mt-1" style={{ color: C.grau }}>Pläne, in denen sie schon steckt, bleiben unverändert.</p>
+          <div className="flex gap-2 mt-3">
+            <Btn klein ton="rot" onClick={() => { sichern((katalog || []).filter((x) => x.id !== offen.id)); setSicher(false); setOffen(null); }}>Ja, löschen</Btn>
+            <Btn klein onClick={() => setSicher(false)}>Abbrechen</Btn>
+          </div>
+        </Karte>
+      )}
       <Feld className="mt-3" value={offen.name} onChange={(e) => setOffen({ ...offen, name: e.target.value })} placeholder="Name" />
       <div className="grid grid-cols-2 gap-2 mt-2">
         <Num l="Standard kg" v={offen.kg} on={(x) => setOffen({ ...offen, kg: x })} />
         <Num l="Standard Wdh / Sek" v={offen.wdh} on={(x) => setOffen({ ...offen, wdh: x })} />
       </div>
       <div className="mt-2"><GeraetFeld v={offen.geraet} on={(x) => setOffen({ ...offen, geraet: x })} /></div>
+      <Karte className="mt-3">
+        {prText(offen.name)
+          ? <>
+              <p className="d uppercase text-sm">Bestleistung</p>
+              <p className="m text-2xl mt-1" style={{ color: C.gruen }}>{rekorde[offen.name].kg} kg × {rekorde[offen.name].wdh}</p>
+              <p className="m text-[11px]" style={{ color: C.grau }}>
+                aufgestellt am {new Date(rekorde[offen.name].datum).toLocaleDateString("de-DE", { day: "2-digit", month: "long", year: "numeric" })}
+              </p>
+            </>
+          : <p className="m text-[11px]" style={{ color: C.grau }}>Noch kein Rekord – der kommt aus deinen abgeschlossenen Trainings.</p>}
+      </Karte>
       <MuskelFelder muskeln={offen.muskeln} on={(mus) => setOffen({ ...offen, muskeln: mus })} />
-      <div className="flex gap-2 mt-4">
+      <div className="flex flex-wrap gap-2 mt-4">
         <Btn ton="voll" onClick={() => speichern(offen)} disabled={!offen.name.trim()}>Sichern</Btn>
-        <Btn onClick={() => setOffen(null)}>Zurück</Btn>
+        <Btn onClick={() => { setSicher(false); setOffen(null); }}>Zurück</Btn>
+        {(katalog || []).some((x) => x.id === offen.id) && (
+          <Btn ton="rot" onClick={() => setSicher(true)}>Löschen</Btn>
+        )}
       </div>
     </div>
   );
@@ -741,22 +872,60 @@ function Katalog({ katalog, sichern }) {
           Fehlende Standardübungen ergänzen
         </Btn>
       )}
-      <p className="m text-[11px] mt-2" style={{ color: C.grau }}>
-        {liste.length} Übungen · stehen beim Planbauen unter „Aus Katalog“ zur Auswahl
-      </p>
+      <div className="flex flex-wrap gap-1 mt-3">
+        {GRUPPEN.map((g) => {
+          const an = filter.includes(g.id);
+          return (
+            <button key={g.id} onClick={() => setFilter(an ? filter.filter((x) => x !== g.id) : [...filter, g.id])}
+              aria-pressed={an} className="d uppercase text-xs px-3 py-2"
+              style={{ background: an ? g.farbe : "transparent", color: an ? "#fff" : C.grau,
+                border: `1px solid ${an ? g.farbe : C.linie}`, borderRadius: 2 }}>
+              {g.name}
+            </button>
+          );
+        })}
+      </div>
+
+      {filter.length > 1 && (
+        <div className="flex gap-1 mt-2">
+          {[["beliebig", "eine reicht"], ["alle", "alle nötig"]].map(([k, l]) => (
+            <button key={k} onClick={() => setModus(k)} className="d uppercase text-[11px] px-3 py-2 flex-1"
+              style={{ background: modus === k ? C.tinte : "transparent", color: modus === k ? C.panel : C.grau,
+                border: `1px solid ${modus === k ? C.tinte : C.linie}`, borderRadius: 2 }}>{l}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 mt-2">
+        <p className="m text-[11px] flex-1" style={{ color: C.grau }}>
+          {liste.length} von {(katalog || []).length} Übungen
+          {filter.length > 0 && " · nach Anteil sortiert"}
+        </p>
+        {filter.length > 0 && <Btn klein onClick={() => setFilter([])}>Filter zurücksetzen</Btn>}
+      </div>
       <ul className="mt-3 space-y-2">
         {liste.map((k) => (
           <li key={k.id}><Karte>
             <div className="flex items-center gap-2">
               <div className="flex-1 min-w-0">
                 <h3 className="d text-lg uppercase truncate">{k.name}</h3>
-                <span className="m text-[11px]" style={{ color: C.grau }}>
+                <span className="m text-[11px] block" style={{ color: C.grau }}>
                   {k.geraet ? `${k.geraet} · ` : ""}{zahl(k.kg) > 0 ? `${k.kg} kg · ` : ""}{k.wdh} Wdh
                 </span>
+                {filter.length > 0 && (
+                  <span className="m text-[11px] block">
+                    {filter.map((id) => {
+                      const g = GRUPPEN.find((x) => x.id === id);
+                      return `${g.name} ${Math.round(anteil(k, id))} %`;
+                    }).join(" · ")}
+                  </span>
+                )}
+                {prText(k.name) && (
+                  <span className="m text-[11px] block" style={{ color: C.gruen }}>{prText(k.name)}</span>
+                )}
               </div>
               <Streifen muskeln={k.muskeln} />
               <Btn klein onClick={() => setOffen(k)}>Ändern</Btn>
-              <Btn klein ton="rot" onClick={() => sichern(katalog.filter((x) => x.id !== k.id))}>✕</Btn>
             </div>
           </Karte></li>
         ))}
@@ -833,10 +1002,13 @@ function UebungEditor({ u, i, typ, upd, weg, katalog, katalogSichern }) {
 const GeraetFeld = ({ v, on }) => (
   <div>
     <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Gerät</label>
-    <input list="geraeteliste" value={v || ""} onChange={(e) => on(e.target.value)} placeholder="z. B. Kettlebell"
+    <select value={v || ""} onChange={(e) => on(e.target.value)}
       className="m text-sm px-2 py-2 w-full"
-      style={{ background: C.panel, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.tinte }} />
-    <datalist id="geraeteliste">{GERAETE.map((g) => <option key={g} value={g} />)}</datalist>
+      style={{ background: C.panel, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.tinte, minHeight: 44 }}>
+      <option value="">— kein Gerät —</option>
+      {GERAETE.map((g) => <option key={g} value={g}>{g}</option>)}
+      {v && !GERAETE.includes(v) && <option value={v}>{v}</option>}
+    </select>
   </div>
 );
 const Num = ({ l, v, on }) => (
@@ -851,9 +1023,10 @@ function Start({ plaene, starten, zuPlaenen }) {
       <Btn ton="voll" onClick={zuPlaenen}>Plan anlegen</Btn></div>
   );
   const los = (p) => starten({
-    planId: p.id, name: p.name, start: null, gelaufen: 0,
+    planId: p.id, name: p.name, start: null, gelaufen: 0, aktivSeit: null,
     bloecke: p.bloecke.map((b) => ({
       ...b,
+      zeit: 0,
       erledigt: b.typ === "einzel"
         ? b.uebungen.map((u) => satzListe(u).map(() => false))
         : b.typ === "leiter"
@@ -938,23 +1111,35 @@ function Einheit({ session, setSession, beenden }) {
     return () => { try { sperre && sperre.release(); } catch {} };
   }, [laeuft]);
 
-  const starten = () => setSession({ ...session, start: Date.now() });
-  const anhalten = () => setSession({ ...session, start: null, gelaufen });
-  const setBlock = (i, neu) => setSession({
-    ...session,
-    start: !session.start && !zahl(session.gelaufen) ? Date.now() : session.start,
-    bloecke: session.bloecke.map((x, j) => (j === i ? neu : x)),
-  });
-
-  const sekIst = (bl, u) => {
-    const ui = bl.uebungen.indexOf(u);
-    if (bl.typ === "einzel") return satzListe(u).reduce((a, sz, si) => a + (((bl.erledigt || [])[ui] || [])[si] ? zahl(sz.wdh) * SEK_PRO_WDH : 0), 0);
-    if (bl.typ === "leiter") return leiterRunden(bl).reduce((a, wdh, ri) => a + (((bl.erledigt || [])[ri] || [])[ui] ? wdh * SEK_PRO_WDH : 0), 0);
-    if (bl.typ === "intervall") return (bl.erledigt || []).reduce((a, d) => a + ((d || [])[ui] ? zahl(bl.arbeit) : 0), 0);
-    const done = ((bl.erledigt || [])[ui] || []).filter(Boolean).length;
-    return u.messung === "zeit" ? done * zahl(u.dauer) : done * zahl(u.wdh) * SEK_PRO_WDH;
+  /* Laufende Zeit dem gerade offenen Block gutschreiben */
+  const einbuchen = (basis, index) => {
+    if (!basis.aktivSeit) return basis.bloecke;
+    const sek = (Date.now() - basis.aktivSeit) / 1000;
+    return basis.bloecke.map((b, i) => (i === index ? { ...b, zeit: zahl(b.zeit) + sek } : b));
   };
-  const { v, gesamt } = verteilung(session.bloecke, sekIst);
+
+  const starten = () => setSession({ ...session, start: Date.now(), aktivSeit: Date.now() });
+  const anhalten = () => setSession({ ...session, bloecke: einbuchen(session, bi), start: null, aktivSeit: null, gelaufen });
+  const wechseln = (neu) => {
+    setSession({ ...session, bloecke: einbuchen(session, bi), aktivSeit: session.start ? Date.now() : null });
+    setBi(neu); setFertigAn(false);
+  };
+  const setBlock = (i, neu) => {
+    const startet = !session.start && !zahl(session.gelaufen);
+    setSession({
+      ...session,
+      start: startet ? Date.now() : session.start,
+      aktivSeit: startet ? Date.now() : session.aktivSeit,
+      bloecke: session.bloecke.map((x, j) => (j === i ? neu : x)),
+    });
+  };
+
+  /* Blöcke inklusive der Sekunden, die im offenen Block gerade laufen */
+  const bloeckeJetzt = session.bloecke.map((b, i) =>
+    i === bi && session.aktivSeit ? { ...b, zeit: zahl(b.zeit) + (jetzt - session.aktivSeit) / 1000 } : b
+  );
+  const blockZeit = (i) => zahl(bloeckeJetzt[i]?.zeit);
+  const { v, gesamt } = verteilung(bloeckeJetzt, (b) => zahl(b.zeit));
 
   const blockFertig = (bl) => (bl.erledigt || []).length > 0 && (bl.erledigt || []).every((r) => (r || []).every(Boolean));
   const b = session.bloecke[Math.min(bi, session.bloecke.length - 1)];
@@ -968,7 +1153,7 @@ function Einheit({ session, setSession, beenden }) {
           <div className="flex-1 min-w-0">
             <span className="m text-5xl leading-none block">{uhr(gelaufen)}</span>
             <span className="b text-sm block mt-1 truncate" style={{ color: C.grau }}>
-              {session.name} · {minuten(gesamt)} Arbeit
+              {session.name} · Block {uhr(blockZeit(bi))}
             </span>
           </div>
           <button onClick={laeuft ? anhalten : starten} className="d uppercase text-lg"
@@ -979,11 +1164,12 @@ function Einheit({ session, setSession, beenden }) {
         </div>
         <div className="flex gap-1 mt-2">
           {session.bloecke.map((x, i) => (
-            <button key={x.id} onClick={() => { setBi(i); setFertigAn(false); }} className="flex-1 d uppercase text-xs py-2 truncate"
+            <button key={x.id} onClick={() => wechseln(i)} className="flex-1 d uppercase text-xs py-2 truncate"
               style={{ background: i === bi ? C.tinte : blockFertig(x) ? C.gruen : "transparent",
                 color: i === bi || blockFertig(x) ? C.panel : C.grau,
                 border: `1px solid ${i === bi ? C.tinte : C.linie}`, borderRadius: 2 }}>
-              {x.name}
+              <span className="block truncate">{x.name}</span>
+              <span className="m text-[9px] block opacity-80">{uhr(blockZeit(i))}</span>
             </button>
           ))}
         </div>
@@ -1000,9 +1186,9 @@ function Einheit({ session, setSession, beenden }) {
       )}
 
       <div className="flex gap-2 mt-6">
-        {bi > 0 && <Btn onClick={() => setBi(bi - 1)}>◂ Zurück</Btn>}
+        {bi > 0 && <Btn onClick={() => wechseln(bi - 1)}>◂ Zurück</Btn>}
         {!letzter
-          ? <button onClick={() => setBi(bi + 1)} className="d uppercase text-lg flex-1"
+          ? <button onClick={() => wechseln(bi + 1)} className="d uppercase text-lg flex-1"
               style={{ minHeight: 60, background: C.tinte, color: C.panel, border: `1px solid ${C.tinte}`, borderRadius: 2 }}>
               Nächster Block ▸
             </button>
@@ -1026,6 +1212,7 @@ function Einheit({ session, setSession, beenden }) {
               id: uid(), name: session.name, datum: new Date().toISOString(),
               dauer: Math.round(gelaufen / 60), sekundenGesamt: Math.round(gelaufen),
               sekunden: Math.round(gesamt), verteilung: v, leistung: leistungAus(session),
+              bloecke: bloeckeJetzt.filter((b) => zahl(b.zeit) > 0).map((b) => ({ name: b.name, zeit: Math.round(zahl(b.zeit)) })),
             })}>Speichern</Btn>
             <Btn onClick={() => setFertigAn(false)}>Weiter trainieren</Btn>
           </div>
@@ -1429,12 +1616,17 @@ function Bilanz({ verlauf }) {
                   {new Date(e.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
                 </span>
               </div>
-              <p className="m text-xs mt-1" style={{ color: C.grau }}>{minuten(g)} Arbeitszeit · {e.dauer} min gesamt</p>
-              <div className="flex h-2 mt-2" style={{ border: `1px solid ${C.tinte}` }}>
-                {GRUPPEN.map((gr) => {
-                  const w = g ? (zahl(e.verteilung?.[gr.id]) / g) * 100 : 0;
-                  return w > 0.5 ? <div key={gr.id} style={{ width: `${w}%`, background: gr.farbe }} /> : null;
-                })}
+              <div className="flex items-center gap-3 mt-2">
+                <Kreis groesse={54} beschriftet={false}
+                  reihen={GRUPPEN.map((gr) => ({ ...gr, p: g ? (zahl(e.verteilung?.[gr.id]) / g) * 100 : 0 })).filter((x) => x.p > 0.5)} />
+                <div className="min-w-0">
+                  <p className="m text-xs" style={{ color: C.grau }}>{minuten(g)} gewertet · {e.dauer} min gesamt</p>
+                  {(e.bloecke || []).length > 0 && (
+                    <p className="m text-[11px] mt-1" style={{ color: C.grau }}>
+                      {e.bloecke.map((b) => `${b.name} ${Math.round(b.zeit / 60)}′`).join(" · ")}
+                    </p>
+                  )}
+                </div>
               </div>
             </Karte></li>
           );
