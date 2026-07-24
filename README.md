@@ -1,4 +1,4 @@
-# Kabinett des Muskelkaters
+# KdM – Kabinett des Muskelkaters
 
 Trainings-App fürs Handy: Pläne bauen, im Gym abarbeiten, Muskelverteilung und
 Kraftentwicklung auswerten. Läuft als PWA komplett im Browser, ohne Server und
@@ -13,6 +13,7 @@ ohne Konto.
 3. Nach ein bis zwei Minuten läuft die Seite unter
    `https://vengadorhh.github.io/Kabinett-des-Muskelkaters/`
 4. Link am Handy öffnen → Teilen-Menü → **Zum Home-Bildschirm**.
+   Auf dem Homescreen erscheint sie als **KdM**.
 
 ## Dateien
 
@@ -25,27 +26,36 @@ ohne Konto.
 | `icon-maskable-512.png` | für Androids runde und eckige Zuschnitte |
 | `apple-touch-icon.png` | iPhone, 180 px |
 
-## Funktionen
+## Was die App kann
 
-- **Pläne** aus vier Blocktypen: Sätze, Einzelsätze mit Gewicht je Satz,
-  Leiter (absteigende Wiederholungen) und Intervall mit automatischem Timer
-- **Übungskatalog** mit Gerät, Standardwerten, Muskelanteilen, Bestwerten und
-  Mehrfachfilter nach Muskelgruppen
-- **Training** mit Stoppuhr je Block, Bildschirmsperre aus, Vibration beim
-  Intervallwechsel
-- **Bilanz**: Muskelverteilung als Kreisdiagramm über 7, 28 oder 90 Tage,
-  dazu Kraftentwicklung je Übung als Kurve
+**Pläne** aus fünf Blocktypen: Sätze, Einzelsätze mit Gewicht je Satz, Leiter
+mit absteigenden Wiederholungen, Intervall mit automatischem Timer, sowie
+Zirkel/Warm-up. Pläne lassen sich kopieren und als Vorlage weiterverwenden.
+
+**Lebenszyklus**: Plan anlegen → fürs nächste Training vormerken (mehrere
+möglich, mit Termin) → starten → beim Abschluss wandert die Einheit in die
+Bilanz und die Vormerkung löst sich.
+
+**Übungskatalog** mit Gerät, Standardwerten, Muskelanteilen, Bestwerten samt
+Datum und Mehrfachfilter nach Muskelgruppen.
+
+**Training**: Stoppuhr je Block, Bildschirm bleibt an, Vibration beim
+Intervallwechsel, Block währenddessen umsortier- und erweiterbar.
+
+**Bilanz**: Muskelverteilung als Kreisdiagramm über 7, 28 oder 90 Tage, dazu
+Kraftentwicklung je Übung als Kurve.
 
 ## Daten
 
 Pläne, Katalog und Verlauf liegen ausschließlich im Speicher des Browsers auf
 dem jeweiligen Gerät. Nichts wird hochgeladen. Sicherung und CSV-Export unter
-*Pläne → Daten sichern & übertragen*. Vor dem Löschen von Website-Daten unbedingt
-sichern.
+*Pläne → Daten sichern & übertragen*. Vor dem Löschen von Website-Daten
+unbedingt sichern.
 
 ## Aktualisieren
 
 Neue `index.html` hochladen und in `sw.js` die Zeile
-`const VERSION = "muskelkater-v10"` hochzählen. Ohne die Änderung zeigt das
+`const VERSION = "muskelkater-v15"` hochzählen. Ohne diese Änderung zeigt das
 Handy weiter die alte Fassung aus dem Offline-Speicher. Danach App schließen
-und zweimal neu öffnen.
+und zweimal neu öffnen. Ändert sich der Name oder das Icon, muss die
+Verknüpfung auf dem Homescreen gelöscht und neu angelegt werden.
