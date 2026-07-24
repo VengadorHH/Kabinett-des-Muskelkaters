@@ -1,6 +1,6 @@
 {
-  "name": "Kabinett des Muskelkaters",
-  "short_name": "Muskelkater",
+  "name": "KdM – Kabinett des Muskelkaters",
+  "short_name": "KdM",
   "description": "Trainingspläne bauen, im Gym abarbeiten, Muskelverteilung und Kraftentwicklung auswerten.",
   "start_url": "./index.html",
   "scope": "./",

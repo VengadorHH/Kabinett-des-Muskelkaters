@@ -4,12 +4,12 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Kabinett des Muskelkaters</title>
+<title>KdM – Kabinett des Muskelkaters</title>
 <meta name="theme-color" content="#DCDFDB" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-<meta name="apple-mobile-web-app-title" content="Muskelkater" />
+<meta name="apple-mobile-web-app-title" content="KdM" />
 <link rel="manifest" href="./manifest.webmanifest" />
 <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
 <link rel="icon" href="./icon-192.png" />
@@ -24,7 +24,7 @@
 </style>
 </head>
 <body>
-<div id="root"><p id="laedt">Kabinett des Muskelkaters wird geladen …</p></div>
+<div id="root"><p id="laedt">KdM wird geladen …</p></div>
 
 <script>
 /* Speicher: gleiche Schnittstelle wie im Artefakt, hier auf localStorage */
@@ -224,6 +224,19 @@ const Stift = () => (
     <path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16v4z" /><path d="M14.5 5.5l4 4" />
   </svg>
 );
+const Kopie = () => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
+  </svg>
+);
+const SymbolKnopf = ({ onClick, titel, children }) => (
+  <button onClick={onClick} aria-label={titel} title={titel}
+    className="flex items-center justify-center shrink-0"
+    style={{ minWidth: 44, minHeight: 40, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.tinte }}>
+    {children}
+  </button>
+);
 const StiftKnopf = ({ onClick, titel = "Bearbeiten" }) => (
   <button onClick={onClick} aria-label={titel} title={titel}
     className="flex items-center justify-center shrink-0"
@@ -325,10 +338,10 @@ const vorlageKettlebell = () => ({
   bloecke: [
     { id: uid(), typ: "standard", name: "Warm-up", auswerten: false, uebungen: [
       { id: uid(), name: "Jumping Jacks", geraet: "Körpergewicht", messung: "zeit", saetze: 1, dauer: 60, wdh: 0, kg: 0, pause: 0, muskeln: m({ kardio: 100 }) },
-      { id: uid(), name: "Arm- & Schulterkreisen", geraet: "Körpergewicht", messung: "zeit", saetze: 2, dauer: 30, wdh: 0, kg: 0, pause: 0, muskeln: m({ schulter: 100 }) },
-      { id: uid(), name: "World's Greatest Stretch", geraet: "Matte", messung: "wdh", saetze: 2, wdh: 5, dauer: 0, kg: 0, pause: 0, muskeln: m({ beine: 60, core: 40 }) },
-      { id: uid(), name: "Deep Squat to Hamstring", geraet: "Körpergewicht", messung: "wdh", saetze: 1, wdh: 10, dauer: 0, kg: 0, pause: 0, muskeln: m({ beine: 100 }) },
-      { id: uid(), name: "Bird Dog", geraet: "Matte", messung: "wdh", saetze: 2, wdh: 10, dauer: 0, kg: 0, pause: 0, muskeln: m({ core: 80, ruecken: 20 }) },
+      { id: uid(), name: "Arm- & Schulterkreisen", geraet: "Körpergewicht", messung: "zeit", saetze: 2, dauer: 30, wdh: 0, kg: 0, pause: 0, muskeln: m({ schulter: 75, ruecken: 20, arme: 5 }) },
+      { id: uid(), name: "World's Greatest Stretch", geraet: "Matte", messung: "wdh", saetze: 2, wdh: 5, dauer: 0, kg: 0, pause: 0, muskeln: m({ beine: 45, core: 25, ruecken: 20, schulter: 10 }) },
+      { id: uid(), name: "Deep Squat to Hamstring", geraet: "Körpergewicht", messung: "wdh", saetze: 1, wdh: 10, dauer: 0, kg: 0, pause: 0, muskeln: m({ beine: 75, ruecken: 20, core: 5 }) },
+      { id: uid(), name: "Bird Dog", geraet: "Matte", messung: "wdh", saetze: 2, wdh: 10, dauer: 0, kg: 0, pause: 0, muskeln: m({ core: 55, ruecken: 20, beine: 15, schulter: 10 }) },
     ]},
     { id: uid(), typ: "leiter", name: "Hauptteil · Leiter", auswerten: true, start: 10, ende: 1, schritt: 1,
       hinweis: "Links + Rechts = 1 Wiederholung", uebungen: [
@@ -391,7 +404,10 @@ const katalogStart = () => [
   ["Klimmzüge", "Klimmzugstange", 0, 8, { ruecken: 60, arme: 30, core: 10 }],
   ["Langhantelrudern", "Langhantel", 60, 10, { ruecken: 70, arme: 20, core: 10 }],
   ["Ausfallschritte", "Kurzhantel", 20, 12, { beine: 80, core: 20 }],
-  ["Bird Dog", "Matte", 0, 10, { core: 80, ruecken: 20 }],
+  ["Arm- & Schulterkreisen", "Körpergewicht", 0, 30, { schulter: 75, ruecken: 20, arme: 5 }],
+  ["World's Greatest Stretch", "Matte", 0, 10, { beine: 45, core: 25, ruecken: 20, schulter: 10 }],
+  ["Deep Squat to Hamstring", "Körpergewicht", 0, 10, { beine: 75, ruecken: 20, core: 5 }],
+  ["Bird Dog", "Matte", 0, 10, { core: 55, ruecken: 20, beine: 15, schulter: 10 }],
   ["Jumping Jacks", "Körpergewicht", 0, 60, { kardio: 100 }],
   ["Bankdrücken (LH)", "Langhantel", 50, 10, { brust: 65, schulter: 20, arme: 15 }],
   ["Schrägbankdrücken (KH)", "Kurzhantel", 35, 10, { brust: 60, schulter: 25, arme: 15 }],
@@ -484,6 +500,21 @@ function App() {
   };
   const planSichern = (p) => sichern("plaene2", plaene.some((x) => x.id === p.id) ? plaene.map((x) => (x.id === p.id ? p : x)) : [...plaene, p], setPlaene);
   const planWeg = (id) => sichern("plaene2", plaene.filter((p) => p.id !== id), setPlaene);
+  const planKopieren = (p) => {
+    const kopie = {
+      ...p, id: uid(), name: `${p.name || "Ohne Namen"} (Kopie)`,
+      bloecke: (p.bloecke || []).map((b) => ({
+        ...b, id: uid(),
+        uebungen: (b.uebungen || []).map((u) => ({
+          ...u, id: uid(),
+          saetzeListe: (u.saetzeListe || []).map((sz) => ({ ...sz, id: uid() })),
+          muskeln: { ...u.muskeln },
+        })),
+      })),
+    };
+    planSichern(kopie);
+    setOffen(kopie);
+  };
   const katalogSichern = (k) => sichern("katalog2", k, setKatalog);
   const merkliste = Array.isArray(geplant) ? geplant : geplant?.planId ? [geplant] : [];
   const vormerken = (planId, datum) => {
@@ -536,7 +567,7 @@ function App() {
           : offen ? <Editor plan={offen} katalog={katalog} katalogSichern={katalogSichern}
               sichern={(p) => { planSichern(p); setOffen(null); }} zurueck={() => setOffen(null)}
               weg={plaene.some((x) => x.id === offen.id) ? () => { planWeg(offen.id); setOffen(null); } : null} />
-          : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen} verlauf={verlauf} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg}
+          : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen} kopieren={planKopieren} verlauf={verlauf} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg}
               vorlage={() => planSichern(vorlageKettlebell())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} />
           : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} verlauf={verlauf} />
           : tab === "training" ? <Start plaene={plaene} starten={setSession} zuPlaenen={() => setTab("plaene")} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg} verlauf={verlauf} />
@@ -626,7 +657,7 @@ const planHistorie = (verlauf, p) => {
 };
 const datumKurz = (d) => new Date(d).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
 
-function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, merkliste, vormerken, merkWeg }) {
+function Plaene({ plaene, bearbeiten, kopieren, vorlage, sicherung, einspielen, verlauf, merkliste, vormerken, merkWeg }) {
   const neu = () => bearbeiten({ id: uid(), name: "", notiz: "", bloecke: [] });
   return (
     <div>
@@ -656,6 +687,7 @@ function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, m
                   </p>
                 </div>
                 <div className="flex gap-1 shrink-0">
+                  <SymbolKnopf onClick={() => kopieren(p)} titel="Plan als Vorlage kopieren"><Kopie /></SymbolKnopf>
                   <StiftKnopf onClick={() => bearbeiten(p)} titel="Plan bearbeiten" />
                 </div>
               </div>
