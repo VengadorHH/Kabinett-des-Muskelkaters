@@ -185,12 +185,23 @@ const Kopie = () => (
     <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" />
   </svg>
 );
-const StiftKnopf = ({ onClick, titel = "Bearbeiten" }) => (
-  <button onClick={onClick} aria-label={titel} title={titel}
+const Auge = ({ zu }) => (
+  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" /><circle cx="12" cy="12" r="3" />
+    {zu && <path d="M3 3l18 18" />}
+  </svg>
+);
+const IconKnopf = ({ onClick, titel, aktiv, children }) => (
+  <button onClick={onClick} aria-label={titel} title={titel} aria-pressed={aktiv}
     className="flex items-center justify-center shrink-0"
-    style={{ minWidth: 44, minHeight: 40, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.tinte }}>
-    <Stift />
+    style={{ minWidth: 44, minHeight: 40, border: `1px solid ${aktiv ? C.tinte : C.linie}`,
+      background: aktiv ? C.tinte : "transparent", color: aktiv ? C.panel : C.tinte, borderRadius: 2 }}>
+    {children}
   </button>
+);
+const StiftKnopf = ({ onClick, titel = "Bearbeiten" }) => (
+  <IconKnopf onClick={onClick} titel={titel}><Stift /></IconKnopf>
 );
 
 const Btn = ({ children, ton = "still", klein, ...r }) => {
@@ -321,7 +332,7 @@ function normPlan(p) {
       auswerten: b?.auswerten !== false, hinweis: b?.hinweis || "",
       start: b?.start ?? 10, ende: b?.ende ?? 1, schritt: b?.schritt ?? 1, runden: b?.runden ?? 1,
       arbeit: b?.arbeit ?? 20, pause: b?.pause ?? 10, durchgaenge: b?.durchgaenge ?? 3, satzpause: b?.satzpause ?? 30,
-      dauer: b?.dauer ?? 1200, stgVon: b?.stgVon ?? 0, stgBis: b?.stgBis ?? 0, runden0: b?.runden0 ?? 0,
+      dauer: b?.dauer ?? 1200, stgVon: b?.stgVon ?? 0, stgBis: b?.stgBis ?? 0, tempo: b?.tempo ?? "",
       uebungen: (Array.isArray(b?.uebungen) ? b.uebungen : []).map((u) => ({
         id: u?.id || uid(), name: u?.name || "", geraet: u?.geraet || "", seiten: u?.seiten || "beid", messung: u?.messung === "zeit" ? "zeit" : "wdh",
         saetze: u?.saetze ?? 3, wdh: u?.wdh ?? 10, dauer: u?.dauer ?? 30, kg: u?.kg ?? 0, pause: u?.pause ?? 60,
@@ -458,6 +469,26 @@ export default function App() {
     try { await window.storage.set(key, JSON.stringify(wert)); setHinweis(null); }
     catch { setHinweis("Speichern klappt gerade nicht – Änderungen gelten nur für diese Sitzung."); }
   };
+
+  /* Rotierendes Auto-Backup: bei jeder Änderung an Plänen/Katalog/Verlauf einen
+     datierten Snapshot ablegen, höchstens einen pro Tag, die letzten 7 behalten. */
+  useEffect(() => {
+    if (laden) return;
+    (async () => {
+      try {
+        const tag = new Date().toISOString().slice(0, 10);
+        const schluessel = `backup:${tag}`;
+        await window.storage.set(schluessel, JSON.stringify({
+          version: 2, exportiert: new Date().toISOString(), plaene, verlauf, katalog,
+        }));
+        const liste = await window.storage.list("backup:");
+        const keys = (liste?.keys || []).sort();
+        for (const k of keys.slice(0, Math.max(0, keys.length - 7))) {
+          await window.storage.delete("backup:" + k.replace(/^backup:/, ""));
+        }
+      } catch {}
+    })();
+  }, [plaene, verlauf, katalog, laden]);
   const planSichern = (p) => sichern("plaene2", plaene.some((x) => x.id === p.id) ? plaene.map((x) => (x.id === p.id ? p : x)) : [...plaene, p], setPlaene);
   const planWeg = (id) => sichern("plaene2", plaene.filter((p) => p.id !== id), setPlaene);
   const planKopieren = (p) => {
@@ -485,6 +516,17 @@ export default function App() {
     sichern("geplant2", neu, setGeplant);
   };
   const merkWeg = (planId) => sichern("geplant2", merkliste.filter((x) => x.planId !== planId), setGeplant);
+  const backupsLesen = async () => {
+    try {
+      const liste = await window.storage.list("backup:");
+      const keys = (liste?.keys || []).sort().reverse();
+      const raus = [];
+      for (const k of keys) {
+        try { const v = await window.storage.get(k); raus.push({ key: k, ...JSON.parse(v.value) }); } catch {}
+      }
+      return raus;
+    } catch { return []; }
+  };
   const einspielen = (text) => {
     const d = JSON.parse(text);
     if (!d || !Array.isArray(d.plaene)) throw new Error("Format passt nicht");
@@ -529,7 +571,7 @@ export default function App() {
               weg={plaene.some((x) => x.id === offen.id) ? () => { planWeg(offen.id); setOffen(null); } : null}
               kopieren={plaene.some((x) => x.id === offen.id) ? planKopieren : null} />
           : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen} verlauf={verlauf} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg}
-              vorlage={() => planSichern(vorlageKettlebell())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} />
+              vorlage={() => planSichern(vorlageKettlebell())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} backupsLesen={backupsLesen} />
           : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} verlauf={verlauf} />
           : tab === "training" ? <Start plaene={plaene} starten={setSession} zuPlaenen={() => setTab("plaene")} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg} verlauf={verlauf} />
           : <Bilanz verlauf={verlauf} />}
@@ -539,70 +581,140 @@ export default function App() {
 }
 
 /* ============ Planliste ============ */
-function Daten({ sicherung, einspielen }) {
+const datumZeit = (iso) => {
+  try { return new Date(iso).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }); }
+  catch { return iso; }
+};
+
+function Daten({ sicherung, einspielen, backupsLesen }) {
   const [auf, setAuf] = useState(false);
   const [text, setText] = useState("");
   const [csv, setCsv] = useState("");
   const [meldung, setMeldung] = useState(null);
+  const [backups, setBackups] = useState(null);
+  const dateiRef = useRef(null);
   const json = JSON.stringify({ version: 2, exportiert: new Date().toISOString(), ...sicherung }, null, 1);
+  const stand = () => `${(sicherung.plaene || []).length} Pläne · ${(sicherung.verlauf || []).length} Einheiten · ${(sicherung.katalog || []).length} Übungen`;
 
-  const kopieren = async () => {
-    try { await navigator.clipboard.writeText(json); setMeldung("Sicherung liegt in der Zwischenablage."); }
-    catch { setMeldung("Kopieren ging nicht – markier den Text unten und kopier ihn von Hand."); }
+  const dateiname = () => `kdm-backup-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.json`;
+  const download = (name, inhalt, typ) => {
+    try {
+      const url = URL.createObjectURL(new Blob([inhalt], { type: typ }));
+      const a = document.createElement("a");
+      a.href = url; a.download = name;
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1500);
+      return true;
+    } catch { return false; }
   };
+
+  const alsDatei = () => setMeldung(
+    download(dateiname(), json, "application/json")
+      ? "Backup-Datei erstellt – landet in deinem Download-Ordner. Von dort nach Google Drive verschieben."
+      : "Download ging nicht – nimm „Teilen“ oder „Text kopieren“.");
+
+  const teilen = async () => {
+    const datei = new File([json], dateiname(), { type: "application/json" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [datei] })) {
+        await navigator.share({ files: [datei], title: "KdM Backup" });
+        setMeldung("Zum Teilen geöffnet – wähl Google Drive oder Dateien."); return;
+      }
+      if (navigator.share) { await navigator.share({ title: "KdM Backup", text: json }); return; }
+      throw new Error("kein Teilen");
+    } catch { setMeldung("Teilen nicht verfügbar – nimm „Als Datei speichern“."); }
+  };
+
+  const dateiGewaehlt = async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    try { einspielen(await f.text()); setMeldung("Backup-Datei eingespielt."); }
+    catch { setMeldung("Die Datei ließ sich nicht lesen – ist es ein KdM-Backup?"); }
+    e.target.value = "";
+  };
+
   const laden = () => {
     try { einspielen(text); setMeldung("Sicherung eingespielt."); setText(""); }
     catch { setMeldung("Das war keine gültige Sicherung. Bitte den kompletten Text einfügen."); }
+  };
+  const kopieren = async () => {
+    try { await navigator.clipboard.writeText(json); setMeldung("Sicherung in der Zwischenablage."); }
+    catch { setMeldung("Kopieren ging nicht – nutz „Als Datei speichern“."); }
+  };
+  const backupsZeigen = async () => {
+    const b = await backupsLesen();
+    setBackups(b);
+    if (!b.length) setMeldung("Noch keine automatischen Backups vorhanden.");
   };
 
   return (
     <div className="mt-8">
       <button onClick={() => setAuf(!auf)} className="d uppercase text-xs" style={{ color: C.grau }}>
-        {auf ? "▾" : "▸"} Daten sichern & übertragen
+        {auf ? "▾" : "▸"} Daten sichern & wiederherstellen
       </button>
       {auf && (
         <Karte className="mt-2">
           <p className="b text-xs" style={{ color: C.grau }}>
-            Pläne und Bilanz liegen auf deinem Gerätekonto und bleiben zwischen den Sitzungen erhalten.
-            Für Gerätewechsel oder als Backup: Text kopieren und aufbewahren.
+            Deine Daten liegen im Speicher dieses Geräts und überstehen App-Updates.
+            Für Gerätewechsel oder Sicherheit: als Datei speichern und in Google Drive ablegen.
           </p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <Btn klein ton="voll" onClick={kopieren}>Sicherung kopieren</Btn>
-            <Btn klein onClick={laden} disabled={!text.trim()}>Sicherung einspielen</Btn>
+          <p className="m text-[11px] mt-1" style={{ color: C.tinte }}>Aktuell: {stand()}</p>
+
+          <p className="d uppercase text-[11px] mt-4 mb-1" style={{ color: C.grau }}>Sichern</p>
+          <div className="flex flex-wrap gap-2">
+            <Btn klein ton="voll" onClick={alsDatei}>Als Datei speichern</Btn>
+            <Btn klein onClick={teilen}>An Drive teilen</Btn>
+            <Btn klein onClick={kopieren}>Text kopieren</Btn>
           </div>
-          <p className="b text-xs mt-4" style={{ color: C.grau }}>
-            Durchgeführte Trainings als Tabelle – eine Zeile je Satz, direkt in Excel oder Numbers zu öffnen.
-          </p>
-          <div className="flex flex-wrap gap-2 mt-2">
-            <Btn klein onClick={async () => {
-              try { await navigator.clipboard.writeText(csvAus(sicherung.verlauf)); setMeldung("Trainings als Tabelle kopiert."); }
-              catch { setMeldung("Kopieren ging nicht – nutz den Download."); }
-            }}>Trainings kopieren</Btn>
-            <Btn klein onClick={async () => {
-              const inhalt = csvAus(sicherung.verlauf);
-              try {
-                if (navigator.share) { await navigator.share({ title: "Trainings", text: inhalt }); setMeldung(null); return; }
-                throw new Error("kein Teilen");
-              } catch { setCsv(inhalt); setMeldung("Teilen ging nicht – hier ist die Tabelle zum Kopieren."); }
-            }}>Teilen</Btn>
-            <Btn klein onClick={() => { setCsv(csvAus(sicherung.verlauf)); setMeldung(null); }}>Tabelle anzeigen</Btn>
+
+          <p className="d uppercase text-[11px] mt-4 mb-1" style={{ color: C.grau }}>Wiederherstellen</p>
+          <div className="flex flex-wrap gap-2">
+            <Btn klein ton="voll" onClick={() => dateiRef.current?.click()}>Aus Datei laden</Btn>
+            <Btn klein onClick={backupsZeigen}>Auto-Backups</Btn>
           </div>
-          {meldung && <p className="m text-[11px] mt-2">{meldung}</p>}
-          {csv && (
-            <div className="mt-2">
-              <p className="m text-[11px] mb-1" style={{ color: C.grau }}>Antippen markiert alles – dann kopieren und z. B. in eine Notiz oder Mail einfügen.</p>
-              <textarea readOnly value={csv} rows={8} onFocus={(e) => e.target.select()}
-                className="m text-[10px] w-full p-2"
-                style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
-            </div>
+          <input ref={dateiRef} type="file" accept="application/json,.json" onChange={dateiGewaehlt} style={{ display: "none" }} />
+
+          {backups && backups.length > 0 && (
+            <ul className="mt-2 space-y-1">
+              {backups.map((b) => (
+                <li key={b.key} className="flex items-center gap-2 p-2"
+                  style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }}>
+                  <span className="m text-[11px] flex-1" style={{ color: C.grau }}>
+                    {datumZeit(b.exportiert)} · {(b.plaene || []).length}P · {(b.verlauf || []).length}E
+                  </span>
+                  <Btn klein onClick={() => {
+                    try { einspielen(JSON.stringify(b)); setMeldung(`Backup vom ${datumZeit(b.exportiert)} eingespielt.`); }
+                    catch { setMeldung("Dieses Backup ließ sich nicht laden."); }
+                  }}>Laden</Btn>
+                </li>
+              ))}
+            </ul>
           )}
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
-            placeholder="Sicherungstext hier einfügen und einspielen"
-            className="m text-[11px] w-full mt-2 p-2"
-            style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+
+          {meldung && <p className="m text-[11px] mt-3" style={{ background: C.beton, padding: 8, borderRadius: 2 }}>{meldung}</p>}
+
+          <details className="mt-4">
+            <summary className="m text-[11px]" style={{ color: C.grau }}>Trainings als Tabelle (CSV)</summary>
+            <div className="flex flex-wrap gap-2 mt-2">
+              <Btn klein onClick={() => setMeldung(
+                download(`kdm-trainings-${new Date().toISOString().slice(0, 10)}.csv`, "\ufeff" + csvAus(sicherung.verlauf), "text/csv;charset=utf-8")
+                  ? "CSV-Datei erstellt." : "Download ging nicht.")}>Als CSV speichern</Btn>
+              <Btn klein onClick={() => { setCsv(csvAus(sicherung.verlauf)); }}>Anzeigen</Btn>
+            </div>
+            {csv && (
+              <textarea readOnly value={csv} rows={6} onFocus={(e) => e.target.select()}
+                className="m text-[10px] w-full mt-2 p-2"
+                style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+            )}
+          </details>
+
           <details className="mt-2">
-            <summary className="m text-[11px]" style={{ color: C.grau }}>Aktuelle Sicherung anzeigen</summary>
-            <textarea readOnly value={json} rows={6} onFocus={(e) => e.target.select()}
+            <summary className="m text-[11px]" style={{ color: C.grau }}>Text manuell einfügen / anzeigen</summary>
+            <textarea value={text} onChange={(e) => setText(e.target.value)} rows={3}
+              placeholder="Sicherungstext hier einfügen"
+              className="m text-[11px] w-full mt-2 p-2"
+              style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+            <Btn klein onClick={laden} disabled={!text.trim()}>Text einspielen</Btn>
+            <textarea readOnly value={json} rows={5} onFocus={(e) => e.target.select()}
               className="m text-[10px] w-full mt-2 p-2"
               style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
           </details>
@@ -618,7 +730,7 @@ const planHistorie = (verlauf, p) => {
 };
 const datumKurz = (d) => new Date(d).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
 
-function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, merkliste, vormerken, merkWeg }) {
+function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, merkliste, vormerken, merkWeg, backupsLesen }) {
   const neu = () => bearbeiten({ id: uid(), name: "", notiz: "", bloecke: [] });
   return (
     <div>
@@ -668,7 +780,7 @@ function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, m
           );
         })}
       </ul>
-      <Daten sicherung={sicherung} einspielen={einspielen} />
+      <Daten sicherung={sicherung} einspielen={einspielen} backupsLesen={backupsLesen} />
     </div>
   );
 }
@@ -771,19 +883,6 @@ function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
           </p>
         </div>
       )}
-      {b.typ === "laufband" && (
-        <div className="grid grid-cols-3 gap-2 mt-2">
-          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Minuten</label>
-            <Feld type="number" inputMode="numeric" value={Math.round(zahl(b.dauer) / 60)}
-              onChange={(e) => upd({ ...b, dauer: Math.round(zahl(e.target.value) * 60) })} /></div>
-          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Steigung % (max 15)</label>
-            <Feld type="number" inputMode="decimal" value={b.steigung ?? 0}
-              onChange={(e) => upd({ ...b, steigung: Math.min(15, Math.max(0, zahl(e.target.value))) })} /></div>
-          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Tempo km/h</label>
-            <Feld type="number" inputMode="decimal" value={b.tempo ?? ""}
-              onChange={(e) => upd({ ...b, tempo: e.target.value })} /></div>
-        </div>
-      )}
       {b.typ === "einfach" && (
         <div className="mt-2">
           <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Runden (1 = Warm-up, mehr = Zirkel)</label>
@@ -792,16 +891,19 @@ function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
         </div>
       )}
       {b.typ === "laufband" && (
-        <div className="grid grid-cols-3 gap-2 mt-2">
+        <div className="grid grid-cols-2 gap-2 mt-2">
           <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Minuten</label>
             <Feld type="number" inputMode="numeric" value={Math.round(zahl(b.dauer) / 60)}
               onChange={(e) => upd({ ...b, dauer: zahl(e.target.value) * 60 })} /></div>
-          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Steigung von %</label>
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Zieltempo km/h</label>
+            <Feld type="number" inputMode="decimal" value={b.tempo ?? ""}
+              onChange={(e) => upd({ ...b, tempo: e.target.value })} /></div>
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Zielsteigung von %</label>
             <Feld type="number" inputMode="decimal" value={b.stgVon ?? 0}
-              onChange={(e) => upd({ ...b, stgVon: e.target.value })} /></div>
+              onChange={(e) => upd({ ...b, stgVon: Math.min(15, Math.max(0, zahl(e.target.value))) })} /></div>
           <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>bis % (max 15)</label>
             <Feld type="number" inputMode="decimal" value={b.stgBis ?? 0}
-              onChange={(e) => upd({ ...b, stgBis: Math.min(15, zahl(e.target.value)) })} /></div>
+              onChange={(e) => upd({ ...b, stgBis: Math.min(15, Math.max(0, zahl(e.target.value))) })} /></div>
         </div>
       )}
       {b.typ === "amrap" && (
@@ -1346,21 +1448,46 @@ const uhr = (sek) => {
 function leistungAus(session) {
   const raus = [];
   (session.bloecke || []).forEach((bl) => {
+    const block = bl.name || "Block";
+    if (bl.typ === "laufband") {
+      if (bl.fertig) raus.push({ block, name: bl.name || "Laufband", geraet: "Laufband", info: `${Math.round(zahl(bl.dauer) / 60)} min`, saetze: [] });
+      return;
+    }
+    if (bl.typ === "amrap") {
+      if (zahl(bl.amrapRunden) > 0) raus.push({ block, name: bl.name || "AMRAP", geraet: "", info: `${bl.amrapRunden} Runden`, saetze: [] });
+      return;
+    }
     (bl.uebungen || []).forEach((u, ui) => {
       const saetze = [];
       if (bl.typ === "einzel") {
         satzListe(u).forEach((sz, si) => {
-          if (((bl.erledigt || [])[ui] || [])[si]) saetze.push({ kg: zahl(sz.kg), wdh: zahl(sz.wdh) });
+          const w = hakenWert(((bl.erledigt || [])[ui] || [])[si]);
+          if (einseitig(u)) {
+            if (w & 1) saetze.push({ kg: zahl(sz.kg), wdh: zahl(sz.wdh), seite: "L" });
+            if (w & 2) saetze.push({ kg: zahl(sz.kgR ?? sz.kg), wdh: zahl(sz.wdhR ?? sz.wdh), seite: "R" });
+          } else if (w > 0) {
+            saetze.push({ kg: zahl(sz.kg), wdh: zahl(sz.wdh) });
+          }
         });
       } else if (bl.typ === "leiter") {
         leiterRunden(bl).forEach((wdh, ri) => {
-          if (((bl.erledigt || [])[ri] || [])[ui]) saetze.push({ kg: zahl(u.kg), wdh });
+          if (istFertig(u, ((bl.erledigt || [])[ri] || [])[ui])) saetze.push({ kg: zahl(u.kg), wdh });
         });
-      } else if (bl.typ === "standard" && u.messung !== "zeit") {
-        const n = ((bl.erledigt || [])[ui] || []).filter(Boolean).length;
+      } else if (bl.typ === "einfach") {
+        const n = ((bl.erledigt || []).filter((row) => istFertig(u, (row || [])[ui]))).length;
         for (let k = 0; k < n; k++) saetze.push({ kg: zahl(u.kg), wdh: zahl(u.wdh) });
+      } else if (bl.typ === "intervall") {
+        const n = (bl.erledigt || []).filter((d) => istFertig(u, (d || [])[ui])).length;
+        for (let k = 0; k < n; k++) saetze.push({ kg: zahl(u.kg), wdh: 0, info: `${zahl(bl.arbeit)} s` });
+      } else if (bl.typ === "standard") {
+        const n = ((bl.erledigt || [])[ui] || []).filter((x) => istFertig(u, x)).length;
+        for (let k = 0; k < n; k++) {
+          saetze.push(u.messung === "zeit"
+            ? { kg: zahl(u.kg), wdh: 0, info: `${zahl(u.dauer)} s` }
+            : { kg: zahl(u.kg), wdh: zahl(u.wdh) });
+        }
       }
-      if (saetze.length) raus.push({ name: u.name, geraet: u.geraet || "", saetze });
+      if (saetze.length) raus.push({ block, name: u.name, geraet: u.geraet || "", saetze });
     });
   });
   return raus;
@@ -1411,7 +1538,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
         : typ === "einzel" ? "Einzelsätze" : typ === "einfach" ? "Zirkel"
         : typ === "laufband" ? "Laufband" : typ === "amrap" ? "AMRAP" : "Block",
       auswerten: true, start: 10, ende: 1, schritt: 1, runden: 1, arbeit: 20, pause: 10,
-      durchgaenge: 3, satzpause: 30, dauer: 1200, stgVon: 0, stgBis: 0, zeit: 0, amrapRunden: 0,
+      durchgaenge: 3, satzpause: 30, dauer: 1200, stgVon: 0, stgBis: 0, tempo: "", zeit: 0, amrapRunden: 0,
       erledigt: [],
       uebungen: typ === "laufband"
         ? [{ id: uid(), name: "Laufen", geraet: "Laufband", seiten: "beid", messung: "zeit",
@@ -1485,13 +1612,14 @@ function Einheit({ session, setSession, beenden, katalog }) {
       {b && (
         <div className="mt-4">
           {b.hinweis && <p className="b text-sm mb-2" style={{ color: C.grau }}>{b.hinweis}</p>}
-          {b.typ === "laufband" ? <LaufbandLauf b={b} upd={(n) => setBlock(bi, n)} />
+          {b.typ === "laufband" ? <LaufbandLauf b={b} />
+            : b.typ === "amrap" ? <AmrapLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "einfach" ? <EinfachLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "einzel" ? <EinzelLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "leiter" ? <LeiterLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "intervall" ? <IntervallLauf b={b} upd={(n) => setBlock(bi, n)} />
             : <SaetzeLauf b={b} upd={(n) => setBlock(bi, n)} />}
-          {b.typ !== "laufband" && <BlockAnpassen b={b} upd={(n) => setBlock(bi, n)} katalog={katalog} />}
+          {b.typ !== "laufband" && b.typ !== "amrap" && <BlockAnpassen b={b} upd={(n) => setBlock(bi, n)} katalog={katalog} />}
         </div>
       )}
 
@@ -1635,6 +1763,9 @@ function LaufbandLauf({ b, upd }) {
   const [rest, setRest] = useState(ziel);
   const [laeuft, setLaeuft] = useState(false);
   const fertig = !!b.fertig;
+  const spanne = zahl(b.stgBis) > zahl(b.stgVon);
+  const steigungText = zahl(b.stgVon) > 0 || zahl(b.stgBis) > 0
+    ? `${b.stgVon}${spanne ? `–${b.stgBis}` : ""} %` : "frei";
 
   useEffect(() => {
     if (!laeuft) return;
@@ -1652,12 +1783,12 @@ function LaufbandLauf({ b, upd }) {
     <div>
       <div className="grid grid-cols-2 gap-2">
         <div className="p-3 text-center" style={{ background: C.panel, border: `1px solid ${C.linie}`, borderRadius: 2 }}>
-          <span className="d text-4xl leading-none">{b.steigung ?? 0}%</span>
-          <span className="m text-[11px] block mt-1" style={{ color: C.grau }}>Steigung</span>
+          <span className="d text-3xl leading-none">{steigungText}</span>
+          <span className="m text-[11px] block mt-1" style={{ color: C.grau }}>Zielsteigung</span>
         </div>
         <div className="p-3 text-center" style={{ background: C.panel, border: `1px solid ${C.linie}`, borderRadius: 2 }}>
-          <span className="d text-4xl leading-none">{b.tempo || "–"}</span>
-          <span className="m text-[11px] block mt-1" style={{ color: C.grau }}>km/h</span>
+          <span className="d text-3xl leading-none">{zahl(b.tempo) > 0 ? b.tempo : "frei"}</span>
+          <span className="m text-[11px] block mt-1" style={{ color: C.grau }}>Zieltempo km/h</span>
         </div>
       </div>
 
@@ -1681,26 +1812,6 @@ function LaufbandLauf({ b, upd }) {
           als erledigt markieren
         </button>
       )}
-    </div>
-  );
-}
-
-function LaufbandLauf({ b }) {
-  const spanne = zahl(b.stgBis) > zahl(b.stgVon);
-  return (
-    <div>
-      <div className="p-5 text-center" style={{ background: C.panel, border: `2px solid ${C.tinte}`, borderRadius: 2 }}>
-        <span className="d uppercase text-sm" style={{ color: C.grau }}>Ziel</span>
-        <div className="d leading-none my-1" style={{ fontSize: 64 }}>{Math.round(zahl(b.dauer) / 60)}<span className="text-2xl"> min</span></div>
-        <span className="b text-sm" style={{ color: C.grau }}>
-          {zahl(b.stgVon) > 0 || zahl(b.stgBis) > 0
-            ? `Steigung ${b.stgVon}${spanne ? `–${b.stgBis}` : ""} %`
-            : "Steigung frei"}
-        </span>
-      </div>
-      <p className="m text-[11px] mt-3" style={{ color: C.grau }}>
-        Stell Zeit und Steigung am Laufband ein. Die Blockzeit läuft über die Stoppuhr oben mit.
-      </p>
     </div>
   );
 }
@@ -2184,6 +2295,7 @@ function Bestwerte({ verlauf }) {
 function Bilanz({ verlauf }) {
   const [tage, setTage] = useState(28);
   const [ansicht, setAnsicht] = useState("muskeln");
+  const [offen, setOffen] = useState(null);
   const gefiltert = verlauf.filter((e) => Date.now() - new Date(e.datum).getTime() < tage * 864e5);
   const v = leereMuskeln();
   let gesamt = 0;
@@ -2223,18 +2335,24 @@ function Bilanz({ verlauf }) {
       <ul className="mt-3 space-y-2">
         {gefiltert.map((e) => {
           const g = zahl(e.sekunden);
+          const auf = offen === e.id;
           return (
             <li key={e.id}><Karte>
-              <div className="flex justify-between items-baseline">
-                <h3 className="d text-lg uppercase">{e.name}</h3>
-                <span className="m text-[11px]" style={{ color: C.grau }}>
-                  {new Date(e.datum).toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" })}
-                </span>
+              <div className="flex justify-between items-start gap-2">
+                <div className="min-w-0 flex-1">
+                  <h3 className="d text-lg uppercase">{e.name}</h3>
+                  <span className="m text-[11px]" style={{ color: C.grau }}>
+                    {new Date(e.datum).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "2-digit" })}
+                  </span>
+                </div>
+                <IconKnopf onClick={() => setOffen(auf ? null : e.id)} aktiv={auf}
+                  titel={auf ? "Details schließen" : "Details anzeigen"}><Auge zu={auf} /></IconKnopf>
               </div>
+
               <div className="flex items-center gap-3 mt-2">
                 <Kreis groesse={54} beschriftet={false}
                   reihen={GRUPPEN.map((gr) => ({ ...gr, p: g ? (zahl(e.verteilung?.[gr.id]) / g) * 100 : 0 })).filter((x) => x.p > 0.5)} />
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="m text-xs" style={{ color: C.grau }}>{minuten(g)} gewertet · {e.dauer} min gesamt</p>
                   {(e.bloecke || []).length > 0 && (
                     <p className="m text-[11px] mt-1" style={{ color: C.grau }}>
@@ -2243,6 +2361,43 @@ function Bilanz({ verlauf }) {
                   )}
                 </div>
               </div>
+
+              {auf && (
+                <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.linie}` }}>
+                  {(e.leistung || []).length === 0 ? (
+                    <p className="m text-[11px]" style={{ color: C.grau }}>
+                      Für diese Einheit sind keine Übungsdetails gespeichert.
+                    </p>
+                  ) : (
+                    Object.entries((e.leistung || []).reduce((acc, l) => {
+                      const k = l.block || "Übungen";
+                      (acc[k] = acc[k] || []).push(l);
+                      return acc;
+                    }, {})).map(([block, liste]) => (
+                      <div key={block} className="mb-3">
+                        <p className="d uppercase text-xs mb-1" style={{ color: C.grau, borderBottom: `1px solid ${C.linie}` }}>{block}</p>
+                        <ul className="space-y-2">
+                          {liste.map((l, li) => (
+                            <li key={li} className="flex justify-between items-baseline gap-2">
+                              <span className="min-w-0">
+                                <span className="d text-sm uppercase block truncate">{l.name}</span>
+                                {l.geraet && <span className="m text-[10px]" style={{ color: C.grau }}>{l.geraet}</span>}
+                              </span>
+                              <span className="m text-[11px] text-right shrink-0" style={{ color: C.grau }}>
+                                {l.info
+                                  ? l.info
+                                  : (l.saetze || []).map((s) =>
+                                      `${s.seite ? s.seite + " " : ""}${s.kg > 0 ? s.kg + "×" : ""}${s.wdh || s.info || ""}`
+                                    ).join(", ")}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </Karte></li>
           );
         })}
