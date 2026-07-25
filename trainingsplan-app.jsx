@@ -293,32 +293,28 @@ function Auswertung({ v, gesamt, titel = "Muskelgewichtung", kompakt }) {
 const m = (o) => ({ ...leereMuskeln(), ...o });
 const uid = () => Math.random().toString(36).slice(2, 9);
 const vorlageKettlebell = () => ({
-  id: uid(), name: "Suffering Sunday", notiz: "Kettlebell · Core, Schulter & Beine · ca. 50–60 min",
+  id: uid(), name: "Suffering Sunday", notiz: "Joint Mobility & Full Routine · Kettlebell · ca. 30 min",
   bloecke: [
-    { id: uid(), typ: "standard", name: "Warm-up", auswerten: false, uebungen: [
-      { id: uid(), name: "Jumping Jacks", geraet: "Körpergewicht", messung: "zeit", saetze: 1, dauer: 60, wdh: 0, kg: 0, pause: 0, muskeln: m({ kardio: 100 }) },
-      { id: uid(), name: "Arm- & Schulterkreisen", geraet: "Körpergewicht", messung: "zeit", saetze: 2, dauer: 30, wdh: 0, kg: 0, pause: 0, muskeln: m({ schulter: 75, ruecken: 20, arme: 5 }) },
-      { id: uid(), name: "World's Greatest Stretch", geraet: "Matte", messung: "wdh", saetze: 2, wdh: 5, dauer: 0, kg: 0, pause: 0, muskeln: m({ beine: 45, core: 25, ruecken: 20, schulter: 10 }) },
-      { id: uid(), name: "Deep Squat to Hamstring", geraet: "Körpergewicht", messung: "wdh", saetze: 1, wdh: 10, dauer: 0, kg: 0, pause: 0, muskeln: m({ beine: 75, ruecken: 20, core: 5 }) },
-      { id: uid(), name: "Bird Dog", geraet: "Matte", messung: "wdh", saetze: 2, wdh: 10, dauer: 0, kg: 0, pause: 0, muskeln: m({ core: 55, ruecken: 20, beine: 15, schulter: 10 }) },
+    { id: uid(), typ: "einfach", name: "0 · Gelenk-Mobilisation", auswerten: false, runden: 1, uebungen: [
+      { id: uid(), name: "Armkreisen & Thorax-Rotation", geraet: "Körpergewicht", seiten: "beid", messung: "wdh", saetze: 1, wdh: 10, dauer: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ schulter: 70, ruecken: 30 }) },
+      { id: uid(), name: "Handgelenke kreisen", geraet: "Körpergewicht", seiten: "beid", messung: "zeit", saetze: 1, wdh: 0, dauer: 15, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ arme: 100 }) },
+      { id: uid(), name: "Hüftkreisen & Gate Openers", geraet: "Körpergewicht", seiten: "jeSeite", messung: "wdh", saetze: 1, wdh: 8, dauer: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ beine: 70, core: 30 }) },
+      { id: uid(), name: "Kniekreisen & Fußgelenk-Rolls", geraet: "Körpergewicht", seiten: "jeSeite", messung: "wdh", saetze: 1, wdh: 8, dauer: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ beine: 100 }) },
     ]},
-    { id: uid(), typ: "leiter", name: "Hauptteil · Leiter", auswerten: true, start: 10, ende: 1, schritt: 1,
-      hinweis: "Links + Rechts = 1 Wiederholung", uebungen: [
-      { id: uid(), name: "Figure 8", geraet: "Kettlebell", kg: 12, muskeln: m({ core: 50, beine: 30, ruecken: 20 }) },
-      { id: uid(), name: "Kettlebell Windmill", geraet: "Kettlebell", kg: 12, muskeln: m({ schulter: 45, core: 40, beine: 15 }) },
-      { id: uid(), name: "Goblet Squats", geraet: "Kettlebell", kg: 12, muskeln: m({ beine: 70, core: 20, ruecken: 10 }) },
-      { id: uid(), name: "Woodchop", geraet: "Kettlebell", kg: 12, muskeln: m({ core: 60, schulter: 25, beine: 15 }) },
-      { id: uid(), name: "Around the World", geraet: "Kettlebell", kg: 12, muskeln: m({ core: 50, schulter: 30, arme: 20 }) },
+    { id: uid(), typ: "intervall", name: "1 · Warm-up: Tabata Cardio-Sprint", auswerten: true, arbeit: 20, pause: 10, durchgaenge: 2, satzpause: 10,
+      hinweis: "20s Belastung / 10s Pause · 2 Durchgänge (8 Intervalle)", uebungen: [
+      { id: uid(), name: "Spider Lunges", geraet: "Körpergewicht", seiten: "jeSeite", kg: 0, saetzeListe: [], muskeln: m({ beine: 55, core: 30, schulter: 15 }) },
+      { id: uid(), name: "Mountain Climbers", geraet: "Körpergewicht", seiten: "beid", kg: 0, saetzeListe: [], muskeln: m({ core: 45, kardio: 35, schulter: 20 }) },
+      { id: uid(), name: "Cross Body Climbers", geraet: "Körpergewicht", seiten: "beid", kg: 0, saetzeListe: [], muskeln: m({ core: 55, kardio: 30, schulter: 15 }) },
+      { id: uid(), name: "Plank Tuck Jumps", geraet: "Körpergewicht", seiten: "beid", kg: 0, saetzeListe: [], muskeln: m({ kardio: 40, core: 35, beine: 25 }) },
     ]},
-    { id: uid(), typ: "intervall", name: "Core-Finisher", auswerten: true, arbeit: 20, pause: 10, durchgaenge: 3, satzpause: 30, uebungen: [
-      { id: uid(), name: "Plank Transfer", geraet: "Kettlebell", kg: 12, muskeln: m({ core: 60, schulter: 25, arme: 15 }) },
-      { id: uid(), name: "Core Twist", geraet: "Kettlebell", kg: 12, muskeln: m({ core: 90, arme: 10 }) },
-      { id: uid(), name: "Hollow Hold Bicycle", geraet: "Körpergewicht", kg: 0, muskeln: m({ core: 100 }) },
-    ]},
-    { id: uid(), typ: "standard", name: "Cool-down", auswerten: false, uebungen: [
-      { id: uid(), name: "Kindeshaltung", geraet: "Matte", messung: "zeit", saetze: 1, dauer: 60, wdh: 0, kg: 0, pause: 0, muskeln: m({ ruecken: 100 }) },
-      { id: uid(), name: "Cobra Stretch", geraet: "Matte", messung: "zeit", saetze: 1, dauer: 30, wdh: 0, kg: 0, pause: 0, muskeln: m({ core: 100 }) },
-      { id: uid(), name: "Brustdehnung an der Wand", geraet: "Körpergewicht", messung: "zeit", saetze: 2, dauer: 30, wdh: 0, kg: 0, pause: 0, muskeln: m({ ruecken: 100 }) },
+    { id: uid(), typ: "standard", name: "2 · Hauptworkout: 15-Minute Core Burner", auswerten: true,
+      hinweis: "3 Sätze à 30s Belastung / 30s Pause pro Übung", uebungen: [
+      { id: uid(), name: "Dead Halos", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 8, pause: 30, saetzeListe: [], muskeln: m({ core: 60, schulter: 30, arme: 10 }) },
+      { id: uid(), name: "Around the Slings", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 12, pause: 30, saetzeListe: [], muskeln: m({ core: 55, schulter: 30, arme: 15 }) },
+      { id: uid(), name: "Grave Diggers", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 12, pause: 30, saetzeListe: [], muskeln: m({ core: 45, beine: 30, schulter: 25 }) },
+      { id: uid(), name: "Tactical Transfers", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 12, pause: 30, saetzeListe: [], muskeln: m({ beine: 45, core: 40, ruecken: 15 }) },
+      { id: uid(), name: "Dead Pullovers", geraet: "Kettlebell", seiten: "beid", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 8, pause: 30, saetzeListe: [], muskeln: m({ core: 45, ruecken: 30, schulter: 25 }) },
     ]},
   ],
 });
@@ -346,10 +342,11 @@ function normPlan(p) {
 }
 
 /* ============ Übungskatalog ============ */
-const EINSEITIG = ["Side Tilts", "Kettlebell Windmill", "Low Row (einseitig)", "Trizeps-Drücken einarmig",
+const EINSEITIG = ["Spider Lunges", "Side Tilts", "Kettlebell Windmill", "Low Row (einseitig)", "Trizeps-Drücken einarmig",
   "Bird Dog", "Pallof Press", "Holzhacker", "Seitliche Rotation", "World's Greatest Stretch",
   "Incline DB Rows", "Ausfallschritte", "Turkish Get-up"];
-const LINKS_RECHTS = ["Woodchop", "Around the World", "Plank Transfer", "Core Twist"];
+const LINKS_RECHTS = ["Woodchop", "Around the World", "Plank Transfer", "Core Twist",
+  "Dead Halos", "Around the Slings", "Grave Diggers", "Tactical Transfers"];
 // Side Tilts: je Seite
 
 const katalogStart = () => [
@@ -394,6 +391,15 @@ const katalogStart = () => [
   ["Farmer Walk", "Kurzhantel", 50, 40, { arme: 30, ruecken: 30, core: 25, beine: 15 }],
   ["Russian Twist", "Kurzhantel", 10, 20, { core: 90, arme: 10 }],
   ["Side Tilts", "Kettlebell", 12, 12, { core: 90, ruecken: 10 }],
+  ["Spider Lunges", "Körpergewicht", 0, 10, { beine: 55, core: 30, schulter: 15 }],
+  ["Mountain Climbers", "Körpergewicht", 0, 30, { core: 45, kardio: 35, schulter: 20 }],
+  ["Cross Body Climbers", "Körpergewicht", 0, 30, { core: 55, kardio: 30, schulter: 15 }],
+  ["Plank Tuck Jumps", "Körpergewicht", 0, 15, { kardio: 40, core: 35, beine: 25 }],
+  ["Dead Halos", "Kettlebell", 8, 10, { core: 60, schulter: 30, arme: 10 }],
+  ["Around the Slings", "Kettlebell", 12, 12, { core: 55, schulter: 30, arme: 15 }],
+  ["Grave Diggers", "Kettlebell", 12, 12, { core: 45, beine: 30, schulter: 25 }],
+  ["Tactical Transfers", "Kettlebell", 12, 10, { beine: 45, core: 40, ruecken: 15 }],
+  ["Dead Pullovers", "Kettlebell", 8, 12, { core: 45, ruecken: 30, schulter: 25 }],
   ["Cable Crunches", "Seilzug", 80, 15, { core: 100 }],
   ["Holzhacker", "Seilzug", 40, 10, { core: 70, schulter: 20, ruecken: 10 }],
   ["Seitliche Rotation", "Seilzug", 25, 10, { core: 85, schulter: 15 }],

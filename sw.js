@@ -1,5 +1,5 @@
 /* Service Worker: App offline verfügbar halten */
-const VERSION = "muskelkater-v25";
+const VERSION = "muskelkater-v26";
 const SCHALE = [
   "./",
   "./index.html",
