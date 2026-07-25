@@ -25,6 +25,21 @@
 </head>
 <body>
 <div id="root"><p id="laedt">KdM wird geladen …</p></div>
+<div id="fehlerbox" style="display:none;position:fixed;inset:0;background:#15181B;color:#DCDFDB;font-family:monospace;font-size:12px;padding:16px;overflow:auto;z-index:9999;white-space:pre-wrap"></div>
+<script>
+  window.__zeigeFehler = function (msg) {
+    var box = document.getElementById("fehlerbox");
+    var l = document.getElementById("laedt");
+    if (l) l.style.display = "none";
+    if (box) { box.style.display = "block"; box.textContent = "Fehler beim Laden:\n\n" + msg; }
+  };
+  window.addEventListener("error", function (e) {
+    window.__zeigeFehler((e.message || e.error) + "\n\n" + (e.filename || "") + ":" + (e.lineno || ""));
+  });
+  window.addEventListener("unhandledrejection", function (e) {
+    window.__zeigeFehler("Promise: " + (e.reason && e.reason.message ? e.reason.message : e.reason));
+  });
+</script>
 
 <script>
 /* Speicher: gleiche Schnittstelle wie im Artefakt, hier auf localStorage */
@@ -2404,6 +2419,13 @@ function Bilanz({ verlauf }) {
         {gefiltert.map((e) => {
           const g = zahl(e.sekunden);
           const auf = offen === e.id;
+          const nachBlock = {};
+          (e.leistung || []).forEach((l) => {
+            const k = l.block || "Übungen";
+            if (!nachBlock[k]) nachBlock[k] = [];
+            nachBlock[k].push(l);
+          });
+          const bloeckeDetail = Object.keys(nachBlock).map((block) => [block, nachBlock[block]]);
           return (
             <li key={e.id}><Karte>
               <div className="flex justify-between items-start gap-2">
@@ -2437,11 +2459,7 @@ function Bilanz({ verlauf }) {
                       Für diese Einheit sind keine Übungsdetails gespeichert.
                     </p>
                   ) : (
-                    Object.entries((e.leistung || []).reduce((acc, l) => {
-                      const k = l.block || "Übungen";
-                      (acc[k] = acc[k] || []).push(l);
-                      return acc;
-                    }, {})).map(([block, liste]) => (
+                    bloeckeDetail.map(([block, liste]) => (
                       <div key={block} className="mb-3">
                         <p className="d uppercase text-xs mb-1" style={{ color: C.grau, borderBottom: `1px solid ${C.linie}` }}>{block}</p>
                         <ul className="space-y-2">
@@ -2477,7 +2495,17 @@ function Bilanz({ verlauf }) {
 }
 
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+try {
+  ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  setTimeout(function () {
+    var r = document.getElementById("root");
+    if (r && /wird geladen/.test(r.textContent)) {
+      window.__zeigeFehler("App wurde nicht gerendert. Vermutlich Laufzeitfehler in einer Komponente. Öffne die Seite am Rechner mit F12 → Console für Details.");
+    }
+  }, 1500);
+} catch (err) {
+  window.__zeigeFehler((err && err.stack) ? err.stack : String(err));
+}
 </script>
 </body>
 </html>

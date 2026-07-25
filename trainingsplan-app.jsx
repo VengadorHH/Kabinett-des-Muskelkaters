@@ -2336,6 +2336,13 @@ function Bilanz({ verlauf }) {
         {gefiltert.map((e) => {
           const g = zahl(e.sekunden);
           const auf = offen === e.id;
+          const nachBlock = {};
+          (e.leistung || []).forEach((l) => {
+            const k = l.block || "Übungen";
+            if (!nachBlock[k]) nachBlock[k] = [];
+            nachBlock[k].push(l);
+          });
+          const bloeckeDetail = Object.keys(nachBlock).map((block) => [block, nachBlock[block]]);
           return (
             <li key={e.id}><Karte>
               <div className="flex justify-between items-start gap-2">
@@ -2369,11 +2376,7 @@ function Bilanz({ verlauf }) {
                       Für diese Einheit sind keine Übungsdetails gespeichert.
                     </p>
                   ) : (
-                    Object.entries((e.leistung || []).reduce((acc, l) => {
-                      const k = l.block || "Übungen";
-                      (acc[k] = acc[k] || []).push(l);
-                      return acc;
-                    }, {})).map(([block, liste]) => (
+                    bloeckeDetail.map(([block, liste]) => (
                       <div key={block} className="mb-3">
                         <p className="d uppercase text-xs mb-1" style={{ color: C.grau, borderBottom: `1px solid ${C.linie}` }}>{block}</p>
                         <ul className="space-y-2">
