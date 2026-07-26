@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
-const APP_VERSION = "v32";
+const APP_VERSION = "v36";
 
 /* ============ Tokens ============ */
 const C = {
@@ -819,6 +819,13 @@ function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, m
 function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogSichern }) {
   const [p, setP] = useState(plan);
   const [sicher, setSicher] = useState(false);
+  const [meldung, setMeldungRaw] = useState(null);
+  const setMeldung = (m) => setMeldungRaw(m);
+  useEffect(() => {
+    if (!meldung) return;
+    const t = setTimeout(() => setMeldungRaw(null), 2500);
+    return () => clearTimeout(t);
+  }, [meldung]);
   const upd = (f, w) => setP({ ...p, [f]: w });
   const updBlock = (id, neu) => setP({ ...p, bloecke: p.bloecke.map((b) => (b.id === id ? neu : b)) });
   const blockSchieben = (i, richtung) => {
@@ -864,15 +871,32 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
         <Btn klein onClick={() => addBlock("leiter")}>+ Leiter</Btn>
         <Btn klein onClick={() => addBlock("intervall")}>+ Intervall</Btn>
       </div>
-      <div className="flex flex-wrap gap-2 mt-4">
-        <Btn ton="voll" onClick={() => save(p)}>Plan sichern</Btn>
-        <Btn onClick={zurueck}>Zurück</Btn>
-        {kopieren && (
-          <Btn onClick={() => kopieren(p)}>
-            <span className="flex items-center gap-2"><Kopie /> Als Kopie sichern</span>
-          </Btn>
+      <div className="mt-6" style={{ borderTop: `1px solid ${C.linie}`, paddingTop: 16 }}>
+        <div className="flex items-center gap-2">
+          <Btn ton="voll" onClick={() => { save(p); setMeldung("Plan gesichert."); }}>Plan sichern</Btn>
+          {kopieren && (
+            <Btn onClick={() => { kopieren(p); setMeldung("Als neue Kopie gespeichert."); }}>
+              <span className="flex items-center justify-center gap-2"><Kopie /> Als Kopie</span>
+            </Btn>
+          )}
+          <div className="flex-1" />
+          <button onClick={zurueck} aria-label="Zurück" title="Zurück"
+            className="flex items-center justify-center shrink-0"
+            style={{ minWidth: 44, minHeight: 40, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.tinte }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+              strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M15 18l-6-6 6-6" />
+            </svg>
+          </button>
+        </div>
+        {meldung && (
+          <p className="m text-[11px] mt-2 text-center px-3 py-2"
+            style={{ background: C.gruen, color: "#fff", borderRadius: 2 }}>{meldung}</p>
         )}
-        {weg && <Btn ton="rot" onClick={() => setSicher(true)}>Plan löschen</Btn>}
+        {weg && (
+          <button onClick={() => setSicher(true)} className="d uppercase text-xs mt-4"
+            style={{ color: C.rot }}>Plan löschen</button>
+        )}
       </div>
       {sicher && (
         <Karte className="mt-3">
@@ -1570,14 +1594,28 @@ function Einheit({ session, setSession, beenden, katalog }) {
     return () => clearInterval(t);
   }, [session.start]);
 
-  /* Bildschirm bleibt an, solange trainiert wird */
+  /* Bildschirm bleibt an, solange eine Trainingseinheit offen ist.
+     Android gibt die Sperre beim Wegschalten frei – daher bei Rückkehr neu anfordern. */
   useEffect(() => {
-    let sperre;
-    (async () => {
-      try { if (laeuft && navigator.wakeLock) sperre = await navigator.wakeLock.request("screen"); } catch {}
-    })();
-    return () => { try { sperre && sperre.release(); } catch {} };
-  }, [laeuft]);
+    let sperre = null;
+    let abgemeldet = false;
+    const anfordern = async () => {
+      try {
+        if (!abgemeldet && navigator.wakeLock && document.visibilityState === "visible") {
+          sperre = await navigator.wakeLock.request("screen");
+          sperre.addEventListener("release", () => { sperre = null; });
+        }
+      } catch {}
+    };
+    const beiSichtbar = () => { if (document.visibilityState === "visible") anfordern(); };
+    anfordern();
+    document.addEventListener("visibilitychange", beiSichtbar);
+    return () => {
+      abgemeldet = true;
+      document.removeEventListener("visibilitychange", beiSichtbar);
+      try { sperre && sperre.release(); } catch {}
+    };
+  }, []);
 
   /* Laufende Zeit dem gerade offenen Block gutschreiben */
   const einbuchen = (basis, index) => {
@@ -1851,6 +1889,12 @@ function GewichtLauf({ b, upd }) {
     const neu = stufen.map((kg, j) => (j >= r ? zahl(kg) + delta * schritt : kg));
     upd({ ...b, stufenKg: neu });
   };
+  // eine weitere Stufe obendrauf, Schrittweite über der letzten
+  const stufeDazu = () => {
+    const neu = [...stufen, zahl(stufen[stufen.length - 1]) + schritt];
+    upd({ ...b, stufenKg: neu, erledigt: [...stufen.map((_, j) => hakenWert(erl[j] ?? 0)), 0] });
+    setR(stufen.length);
+  };
 
   return (
     <div>
@@ -1895,6 +1939,12 @@ function GewichtLauf({ b, upd }) {
         style={{ minHeight: 84, background: stufeFertig ? C.linie : C.gruen, color: "#fff",
           border: `1px solid ${stufeFertig ? C.linie : C.gruen}`, borderRadius: 2 }}>
         {stufeFertig ? "erledigt ✓ – zurücknehmen" : `${stufen[r]} kg abschließen`}
+      </button>
+
+      <button onClick={stufeDazu} className="d uppercase text-sm w-full mt-2"
+        style={{ minHeight: 48, background: "transparent", color: C.tinte,
+          border: `1px dashed ${C.linie}`, borderRadius: 2 }}>
+        + Stufe ({zahl(stufen[stufen.length - 1]) + schritt} kg)
       </button>
 
       <p className="m text-[11px] mt-2 text-center" style={{ color: C.grau }}>
