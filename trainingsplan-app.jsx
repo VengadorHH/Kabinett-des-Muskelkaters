@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
-const APP_VERSION = "v36";
+const APP_VERSION = "v38";
 
 /* ============ Tokens ============ */
 const C = {
@@ -1720,14 +1720,14 @@ function Einheit({ session, setSession, beenden, katalog }) {
       {b && (
         <div className="mt-4">
           {b.hinweis && <p className="b text-sm mb-2" style={{ color: C.grau }}>{b.hinweis}</p>}
-          {b.typ === "laufband" ? <LaufbandLauf b={b} />
-            : b.typ === "amrap" ? <AmrapLauf b={b} upd={(n) => setBlock(bi, n)} />
-            : b.typ === "gewichtsleiter" ? <GewichtLauf b={b} upd={(n) => setBlock(bi, n)} />
-            : b.typ === "einfach" ? <EinfachLauf b={b} upd={(n) => setBlock(bi, n)} />
-            : b.typ === "einzel" ? <EinzelLauf b={b} upd={(n) => setBlock(bi, n)} />
-            : b.typ === "leiter" ? <LeiterLauf b={b} upd={(n) => setBlock(bi, n)} />
-            : b.typ === "intervall" ? <IntervallLauf b={b} upd={(n) => setBlock(bi, n)} />
-            : <SaetzeLauf b={b} upd={(n) => setBlock(bi, n)} />}
+          {b.typ === "laufband" ? <LaufbandLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "amrap" ? <AmrapLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "gewichtsleiter" ? <GewichtLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "einfach" ? <EinfachLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "einzel" ? <EinzelLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "leiter" ? <LeiterLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "intervall" ? <IntervallLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : <SaetzeLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />}
           {b.typ !== "laufband" && b.typ !== "amrap" && <BlockAnpassen b={b} upd={(n) => setBlock(bi, n)} katalog={katalog} />}
         </div>
       )}
@@ -2314,6 +2314,25 @@ function LeiterLauf({ b, upd }) {
   );
 }
 
+let audioCtx = null;
+const tonSpielen = (frequenz, dauer, typ = "sine", laut = 0.25) => {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = typ;
+    osc.frequency.value = frequenz;
+    gain.gain.setValueAtTime(laut, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dauer);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + dauer);
+  } catch {}
+};
+const pieps = () => tonSpielen(880, 0.15, "square", 0.2);
+const gong = () => { tonSpielen(523, 0.5, "sine", 0.3); setTimeout(() => tonSpielen(784, 0.4, "sine", 0.25), 60); };
+
 function IntervallLauf({ b, upd }) {
   const folge = useMemo(() => {
     const f = [];
@@ -2331,6 +2350,8 @@ function IntervallLauf({ b, upd }) {
   const [i, setI] = useState(0);
   const [rest, setRest] = useState(folge[0]?.sek || 0);
   const [laeuft, setLaeuft] = useState(false);
+  const [resetFrage, setResetFrage] = useState(false);
+  const [ton, setTon] = useState(true);
   const schritt = folge[i];
   const naechster = folge[i + 1];
 
@@ -2345,7 +2366,8 @@ function IntervallLauf({ b, upd }) {
 
   useEffect(() => {
     if (!laeuft) return;
-    if (rest <= 0) { weiter(); return; }
+    if (rest <= 0) { if (ton) gong(); weiter(); return; }
+    if (ton && (rest === 3 || rest === 2 || rest === 1)) pieps();
     const t = setTimeout(() => setRest((x) => x - 1), 1000);
     return () => clearTimeout(t);
   }, [rest, laeuft]);
@@ -2362,16 +2384,44 @@ function IntervallLauf({ b, upd }) {
         </span>
       </div>
       <div className="flex gap-2 mt-2">
-        <button onClick={() => setLaeuft(!laeuft)} className="d uppercase text-lg flex-1"
+        <button onClick={() => { if (ton && !audioCtx) tonSpielen(1, 0.01, "sine", 0.0001); setLaeuft(!laeuft); }} className="d uppercase text-lg flex-1"
           style={{ minHeight: 64, background: laeuft ? C.rot : C.gruen, color: "#fff",
             border: `2px solid ${laeuft ? C.rot : C.gruen}`, borderRadius: 2 }}>
           {laeuft ? "Stopp" : "Start"}
         </button>
         <button onClick={weiter} className="d uppercase text-lg"
-          style={{ minWidth: 96, minHeight: 64, border: `1px solid ${C.linie}`, borderRadius: 2 }}>Weiter ▸</button>
+          style={{ minWidth: 88, minHeight: 64, border: `1px solid ${C.linie}`, borderRadius: 2 }}>Weiter ▸</button>
+        <button onClick={() => { setTon(!ton); if (!ton) pieps(); }} aria-label={ton ? "Ton aus" : "Ton an"}
+          aria-pressed={ton} title={ton ? "Ton aus" : "Ton an"}
+          style={{ minWidth: 56, minHeight: 64, border: `1px solid ${ton ? C.tinte : C.linie}`,
+            background: ton ? C.tinte : "transparent", color: ton ? C.panel : C.grau, borderRadius: 2 }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ margin: "0 auto" }}>
+            <path d="M11 5L6 9H2v6h4l5 4V5z" />
+            {ton ? <><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" /></> : <path d="M23 9l-6 6M17 9l6 6" />}
+          </svg>
+        </button>
       </div>
-      <button onClick={() => { setI(0); setRest(folge[0]?.sek || 0); setLaeuft(false); }}
-        className="d uppercase text-xs mt-2" style={{ color: C.grau }}>Von vorn</button>
+      {resetFrage ? (
+        <div className="mt-2 p-3" style={{ background: C.panel, border: `1px solid ${C.linie}`, borderRadius: 2 }}>
+          <p className="b text-sm">Timer und alle abgehakten Runden dieses Blocks zurücksetzen?</p>
+          <div className="flex gap-2 mt-2">
+            <button onClick={() => {
+                setI(0); setRest(folge[0]?.sek || 0); setLaeuft(false);
+                upd({ ...b, erledigt: Array.from({ length: zahl(b.durchgaenge) }, () => b.uebungen.map(() => 0)) });
+                setResetFrage(false);
+              }} className="d uppercase text-xs px-3 py-2" style={{ background: C.rot, color: "#fff", border: `1px solid ${C.rot}`, borderRadius: 2 }}>
+              Ja, zurücksetzen
+            </button>
+            <button onClick={() => setResetFrage(false)} className="d uppercase text-xs px-3 py-2"
+              style={{ border: `1px solid ${C.linie}`, borderRadius: 2 }}>Abbrechen</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setResetFrage(true)} className="d uppercase text-xs mt-2" style={{ color: C.grau }}>
+          ↺ Block zurücksetzen
+        </button>
+      )}
       <ul className="mt-3 space-y-2">
         {b.uebungen.map((u, ui) => (
           <li key={u.id} className="flex items-center gap-2">
