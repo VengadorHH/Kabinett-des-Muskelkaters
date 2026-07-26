@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
+const APP_VERSION = "v32";
+
 /* ============ Tokens ============ */
 const C = {
   beton: "#DCDFDB", panel: "#F4F5F2", tinte: "#15181B", grau: "#7C837E",
@@ -37,6 +39,7 @@ const leiterWdh = (b) => {
   return leiterRunden(b).reduce((a, r) => a + r, 0);
 };
 const gewichtStufen = (b) => {
+  if (Array.isArray(b.stufenKg) && b.stufenKg.length) return b.stufenKg.map((x) => zahl(x));
   const stufen = [];
   const von = zahl(b.kgVon), bis = zahl(b.kgBis), schritt = Math.max(1, zahl(b.kgSchritt));
   if (bis >= von) for (let x = von; x <= bis && stufen.length < 60; x += schritt) stufen.push(x);
@@ -73,7 +76,7 @@ const hakenUm = (u, w, bit) => {
 };
 
 function sekundenGeplant(block, u) {
-  if (block.typ === "gewichtsleiter") return gewichtStufen(block).length * 30 * seitenFaktor(u);
+  if (block.typ === "gewichtsleiter") return gewichtStufen(block).length * 30;
   if (block.typ === "laufband") return zahl(block.dauer);
   if (block.typ === "amrap") return zahl(block.dauer);
   if (block.typ === "einfach") return Math.max(1, zahl(block.runden)) * zahl(u.wdh) * SEK_PRO_WDH * seitenFaktor(u);
@@ -565,7 +568,10 @@ export default function App() {
       {!session && (
         <header className="px-4 pt-5 pb-3 sticky top-0 z-20" style={{ borderBottom: `2px solid ${C.tinte}`, background: C.beton }}>
           <div>
-            <h1 className="d text-2xl uppercase leading-none">Kabinett des Muskelkaters</h1>
+            <h1 className="d text-2xl uppercase leading-none">
+              Kabinett des Muskelkaters
+              <span className="m text-[11px] align-top ml-1" style={{ color: C.grau }}>{APP_VERSION}</span>
+            </h1>
             <span className="m text-[11px] block mt-1" style={{ color: C.grau }}>
               {plaene.length} Pläne · {verlauf.length} Einheiten
             </span>
@@ -815,6 +821,13 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
   const [sicher, setSicher] = useState(false);
   const upd = (f, w) => setP({ ...p, [f]: w });
   const updBlock = (id, neu) => setP({ ...p, bloecke: p.bloecke.map((b) => (b.id === id ? neu : b)) });
+  const blockSchieben = (i, richtung) => {
+    const j = i + richtung;
+    if (j < 0 || j >= p.bloecke.length) return;
+    const arr = [...p.bloecke];
+    const h = arr[i]; arr[i] = arr[j]; arr[j] = h;
+    setP({ ...p, bloecke: arr });
+  };
   const addBlock = (typ) => setP({ ...p, bloecke: [...p.bloecke, {
     id: uid(), typ,
     name: typ === "leiter" ? "Leiter" : typ === "intervall" ? "Intervall"
@@ -833,8 +846,11 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
       <div className="mt-4"><Karte><Auswertung v={v} gesamt={gesamt} titel="Gewichtung dieses Plans" /></Karte></div>
 
       <div className="mt-4 space-y-3">
-        {p.bloecke.map((b) => (
-          <BlockEditor key={b.id} b={b} katalog={katalog} katalogSichern={katalogSichern} upd={(n) => updBlock(b.id, n)} weg={() => setP({ ...p, bloecke: p.bloecke.filter((x) => x.id !== b.id) })} />
+        {p.bloecke.map((b, bi) => (
+          <BlockEditor key={b.id} b={b} katalog={katalog} katalogSichern={katalogSichern} upd={(n) => updBlock(b.id, n)}
+            hoch={bi > 0 ? () => blockSchieben(bi, -1) : null}
+            runter={bi < p.bloecke.length - 1 ? () => blockSchieben(bi, 1) : null}
+            weg={() => setP({ ...p, bloecke: p.bloecke.filter((x) => x.id !== b.id) })} />
         ))}
       </div>
 
@@ -845,7 +861,6 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
         <Btn klein onClick={() => addBlock("laufband")}>+ Laufband</Btn>
         <Btn klein onClick={() => addBlock("amrap")}>+ AMRAP</Btn>
         <Btn klein onClick={() => addBlock("gewichtsleiter")}>+ Gewichtsleiter</Btn>
-        <Btn klein onClick={() => addBlock("laufband")}>+ Laufband</Btn>
         <Btn klein onClick={() => addBlock("leiter")}>+ Leiter</Btn>
         <Btn klein onClick={() => addBlock("intervall")}>+ Intervall</Btn>
       </div>
@@ -875,7 +890,7 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
   );
 }
 
-function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
+function BlockEditor({ b, upd, weg, hoch, runter, katalog, katalogSichern }) {
   const [auf, setAuf] = useState(false);
   const [waehlen, setWaehlen] = useState(false);
   const addU = () => upd(uebungDazu(b, leereUebung(b.typ)));
@@ -884,6 +899,10 @@ function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
   return (
     <Karte>
       <div className="flex items-center gap-2">
+        <button onClick={hoch} disabled={!hoch} aria-label="Block nach oben"
+          className="d text-base" style={{ minWidth: 34, minHeight: 40, border: `1px solid ${C.linie}`, borderRadius: 2, color: hoch ? C.tinte : C.linie }}>▲</button>
+        <button onClick={runter} disabled={!runter} aria-label="Block nach unten"
+          className="d text-base" style={{ minWidth: 34, minHeight: 40, border: `1px solid ${C.linie}`, borderRadius: 2, color: runter ? C.tinte : C.linie }}>▼</button>
         <Feld value={b.name} onChange={(e) => upd({ ...b, name: e.target.value })} />
         <button onClick={weg} className="d text-sm px-2 py-2" style={{ color: C.rot }} aria-label="Block löschen">✕</button>
       </div>
@@ -933,15 +952,15 @@ function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
       )}
       {b.typ === "gewichtsleiter" && (
         <div className="grid grid-cols-3 gap-2 mt-2">
-          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>von kg</label>
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Start kg</label>
             <Feld type="number" inputMode="decimal" value={b.kgVon ?? 50}
-              onChange={(e) => upd({ ...b, kgVon: e.target.value })} /></div>
-          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>bis kg</label>
+              onChange={(e) => upd({ ...b, kgVon: e.target.value, stufenKg: null })} /></div>
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Ziel kg</label>
             <Feld type="number" inputMode="decimal" value={b.kgBis ?? 100}
-              onChange={(e) => upd({ ...b, kgBis: e.target.value })} /></div>
+              onChange={(e) => upd({ ...b, kgBis: e.target.value, stufenKg: null })} /></div>
           <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Schritt kg</label>
             <Feld type="number" inputMode="decimal" value={b.kgSchritt ?? 10}
-              onChange={(e) => upd({ ...b, kgSchritt: e.target.value })} /></div>
+              onChange={(e) => upd({ ...b, kgSchritt: e.target.value, stufenKg: null })} /></div>
           <p className="m text-[11px] col-span-3" style={{ color: C.grau }}>
             {gewichtStufen(b).length} Stufen: {gewichtStufen(b).join(" · ")} kg
           </p>
@@ -1384,7 +1403,7 @@ function Start({ plaene, starten, zuPlaenen, merkliste, vormerken, merkWeg, verl
       erledigt: b.typ === "laufband" || b.typ === "amrap"
         ? []
         : b.typ === "gewichtsleiter"
-        ? gewichtStufen(b).map(() => b.uebungen.map(() => false))
+        ? gewichtStufen(b).map(() => 0)
         : b.typ === "einzel"
         ? b.uebungen.map((u) => satzListe(u).map(() => false))
         : b.typ === "leiter"
@@ -1513,8 +1532,8 @@ function leistungAus(session) {
           if (istFertig(u, ((bl.erledigt || [])[ri] || [])[ui])) saetze.push({ kg: zahl(u.kg), wdh });
         });
       } else if (bl.typ === "gewichtsleiter") {
-        gewichtStufen(bl).forEach((kg, ri) => {
-          if (istFertig(u, ((bl.erledigt || [])[ri] || [])[ui])) saetze.push({ kg, wdh: 1 });
+        if (ui === 0) gewichtStufen(bl).forEach((kg, ri) => {
+          if (hakenWert((bl.erledigt || [])[ri]) > 0) saetze.push({ kg, wdh: 1 });
         });
       } else if (bl.typ === "einfach") {
         const n = ((bl.erledigt || []).filter((row) => istFertig(u, (row || [])[ui]))).length;
@@ -1583,11 +1602,16 @@ function Einheit({ session, setSession, beenden, katalog }) {
       : typ === "gewichtsleiter" ? "Gewichtsleiter" : "Block",
       auswerten: true, start: 10, ende: 1, schritt: 1, runden: 1, arbeit: 20, pause: 10,
       durchgaenge: 3, satzpause: 30, dauer: 1200, stgVon: 0, stgBis: 0, tempo: "", zeit: 0, amrapRunden: 0,
+      kgVon: 50, kgBis: 100, kgSchritt: 10,
       erledigt: [],
       uebungen: typ === "laufband"
         ? [{ id: uid(), name: "Laufen", geraet: "Laufband", seiten: "beid", messung: "zeit",
              saetze: 1, wdh: 0, dauer: 1200, kg: 0, pause: 0, saetzeListe: [],
              muskeln: { ...leereMuskeln(), kardio: 80, beine: 20 } }]
+        : typ === "gewichtsleiter"
+        ? [{ id: uid(), name: "Sled Pull", geraet: "Schlitten", seiten: "beid", messung: "wdh",
+             saetze: 1, wdh: 1, dauer: 0, kg: 0, pause: 60, saetzeListe: [],
+             muskeln: { ...leereMuskeln(), beine: 40, ruecken: 30, core: 20, arme: 10 } }]
         : [],
     };
     setSession({ ...session, bloecke: [...session.bloecke, b] });
@@ -1614,8 +1638,10 @@ function Einheit({ session, setSession, beenden, katalog }) {
 
   const blockFertig = (bl) => {
     if (bl.typ === "laufband") return !!bl.fertig;
+    if (bl.typ === "amrap") return zahl(bl.amrapRunden) > 0;
     const erl = bl.erledigt || [];
     if (!erl.length) return false;
+    if (bl.typ === "gewichtsleiter") return erl.some((x) => hakenWert(x) > 0);
     return rundenTyp(bl)
       ? erl.every((r) => (r || []).every((x, j) => istFertig(bl.uebungen[j], x)))
       : erl.every((r, i) => (r || []).every((x) => istFertig(bl.uebungen[i], x)));
@@ -1675,7 +1701,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
         {neuBlock && (
           <div className="flex flex-wrap gap-2 mt-2">
             {[["standard", "Sätze"], ["einzel", "Einzelsätze"], ["leiter", "Leiter"],
-              ["intervall", "Intervall"], ["einfach", "Zirkel"], ["laufband", "Laufband"], ["amrap", "AMRAP"]].map(([t, l]) => (
+              ["intervall", "Intervall"], ["einfach", "Zirkel"], ["laufband", "Laufband"], ["amrap", "AMRAP"], ["gewichtsleiter", "Gewichtsleiter"]].map(([t, l]) => (
               <Btn klein key={t} onClick={() => blockDazu(t)}>{l}</Btn>
             ))}
           </div>
@@ -1804,52 +1830,76 @@ function BlockAnpassen({ b, upd, katalog }) {
 }
 
 function GewichtLauf({ b, upd }) {
-  const stufen = gewichtStufen(b);
+  const basis = gewichtStufen(b);
+  const schritt = Math.max(1, zahl(b.kgSchritt) || 10);
+  // stufenKg speichert die (ggf. angepassten) Ist-Gewichte; ab Start = berechnete Leiter
+  const stufen = (Array.isArray(b.stufenKg) && b.stufenKg.length === basis.length)
+    ? b.stufenKg.map((x) => zahl(x)) : basis;
   const erl = Array.isArray(b.erledigt) ? b.erledigt : [];
   const [r0, setR] = useState(0);
   const r = Math.min(r0, Math.max(0, stufen.length - 1));
-  const reihe = erl[r] || b.uebungen.map(() => false);
-  const um = (ui, bit) => upd({ ...b, erledigt: erl.map((row, i) => (i === r ? row.map((x, j) => (j === ui ? hakenUm(b.uebungen[ui], x, bit) : x)) : row)) });
-  const fertig = (i) => (erl[i] || []).length > 0 && (erl[i] || []).every((x, j) => istFertig(b.uebungen[j], x));
+  const fertig = (i) => hakenWert(erl[i]) > 0;
   const stufeFertig = fertig(r);
+  const gemacht = stufen.filter((_, i) => fertig(i)).length;
+
+  const setStatus = (i, an) => {
+    const arr = stufen.map((_, j) => (j === i ? (an ? 3 : 0) : hakenWert(erl[j] ?? 0)));
+    upd({ ...b, erledigt: arr });
+  };
+  // ab aktueller Stufe alle folgenden um delta*schritt verschieben, davor unverändert
+  const verschieben = (delta) => {
+    const neu = stufen.map((kg, j) => (j >= r ? zahl(kg) + delta * schritt : kg));
+    upd({ ...b, stufenKg: neu });
+  };
 
   return (
     <div>
       <div className="flex items-center gap-2">
         <button onClick={() => setR(Math.max(0, r - 1))} disabled={r === 0} className="d text-xl"
-          style={{ minWidth: 56, minHeight: 72, border: `1px solid ${C.linie}`, borderRadius: 2, color: r === 0 ? C.linie : C.tinte }}>◂</button>
-        <div className="flex-1 text-center py-1">
-          <span className="d text-6xl leading-none" style={{ color: stufeFertig ? C.gruen : C.tinte }}>{stufen[r]}</span>
-          <span className="b text-sm block" style={{ color: C.grau }}>kg · Stufe {r + 1} von {stufen.length}</span>
+          style={{ minWidth: 52, minHeight: 88, border: `1px solid ${C.linie}`, borderRadius: 2, color: r === 0 ? C.linie : C.tinte }}>◂</button>
+        <div className="flex-1 text-center">
+          <div className="flex items-center justify-center gap-2">
+            <button onClick={() => verschieben(-1)} aria-label={`${schritt} kg weniger`} className="d text-2xl"
+              style={{ minWidth: 46, minHeight: 46, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.grau }}>−</button>
+            <span className="d" style={{ fontSize: 60, lineHeight: 1, color: stufeFertig ? C.gruen : C.tinte }}>{stufen[r]}</span>
+            <button onClick={() => verschieben(1)} aria-label={`${schritt} kg mehr`} className="d text-2xl"
+              style={{ minWidth: 46, minHeight: 46, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.grau }}>+</button>
+          </div>
+          <span className="b text-sm block mt-1" style={{ color: C.grau }}>kg · Stufe {r + 1} von {stufen.length}</span>
         </div>
         <button onClick={() => setR(Math.min(stufen.length - 1, r + 1))} disabled={r >= stufen.length - 1} className="d text-xl"
-          style={{ minWidth: 56, minHeight: 72, border: `1px solid ${C.linie}`, borderRadius: 2, color: r >= stufen.length - 1 ? C.linie : C.tinte }}>▸</button>
+          style={{ minWidth: 52, minHeight: 88, border: `1px solid ${C.linie}`, borderRadius: 2, color: r >= stufen.length - 1 ? C.linie : C.tinte }}>▸</button>
       </div>
 
-      <div className="flex h-2 mt-2 gap-px">
-        {stufen.map((_, i) => (
-          <div key={i} className="flex-1" style={{ background: fertig(i) ? C.gruen : i === r ? C.tinte : C.linie }} />
+      <div className="flex gap-1 mt-2 flex-wrap justify-center">
+        {stufen.map((kg, i) => (
+          <span key={i} className="m text-[11px] px-2 py-1"
+            style={{ background: fertig(i) ? C.gruen : i === r ? C.tinte : "transparent",
+              color: fertig(i) || i === r ? "#fff" : C.grau,
+              border: `1px solid ${fertig(i) ? C.gruen : i === r ? C.tinte : C.linie}`, borderRadius: 2 }}>{kg}</span>
         ))}
       </div>
 
-      <ul className="mt-3 space-y-2">
-        {b.uebungen.map((u, ui) => (
-          <li key={u.id} className="flex items-center gap-2">
-            <Haken u={u} wert={reihe[ui]} um={(bit) => um(ui, bit)} hoch={56} />
-            <span className="flex-1 min-w-0">
-              <span className="d text-lg uppercase block truncate">{u.name}</span>
-              <span className="m text-xs" style={{ color: C.grau }}>{stufen[r]} kg{u.geraet && ` · ${u.geraet}`}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      {stufeFertig && r < stufen.length - 1 && (
-        <button onClick={() => setR(r + 1)} className="d uppercase text-lg w-full mt-3"
-          style={{ minHeight: 60, background: C.gruen, color: "#fff", border: `1px solid ${C.gruen}`, borderRadius: 2 }}>
-          Stufe fertig → {stufen[r + 1]} kg
-        </button>
+      {b.uebungen.length > 0 && (
+        <p className="m text-xs mt-3 text-center" style={{ color: C.grau }}>
+          {b.uebungen.map((u) => u.name).join(" · ")}
+        </p>
       )}
+
+      <button
+        onClick={() => {
+          setStatus(r, !stufeFertig);
+          if (!stufeFertig && r < stufen.length - 1) setTimeout(() => setR(r + 1), 250);
+        }}
+        className="d uppercase text-xl w-full mt-3"
+        style={{ minHeight: 84, background: stufeFertig ? C.linie : C.gruen, color: "#fff",
+          border: `1px solid ${stufeFertig ? C.linie : C.gruen}`, borderRadius: 2 }}>
+        {stufeFertig ? "erledigt ✓ – zurücknehmen" : `${stufen[r]} kg abschließen`}
+      </button>
+
+      <p className="m text-[11px] mt-2 text-center" style={{ color: C.grau }}>
+        {gemacht} von {stufen.length} Stufen geschafft · −/+ hebt ab hier um {schritt} kg
+      </p>
     </div>
   );
 }
