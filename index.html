@@ -119,6 +119,13 @@ const zahl = (v) => (Number(v) || 0);
 const leiterWdh = (b) => {
   return leiterRunden(b).reduce((a, r) => a + r, 0);
 };
+const gewichtStufen = (b) => {
+  const stufen = [];
+  const von = zahl(b.kgVon), bis = zahl(b.kgBis), schritt = Math.max(1, zahl(b.kgSchritt));
+  if (bis >= von) for (let x = von; x <= bis && stufen.length < 60; x += schritt) stufen.push(x);
+  else for (let x = von; x >= bis && stufen.length < 60; x -= schritt) stufen.push(x);
+  return stufen;
+};
 const leiterRunden = (b) => {
   const r = [];
   const schritt = Math.max(1, zahl(b.schritt));
@@ -149,9 +156,9 @@ const hakenUm = (u, w, bit) => {
 };
 
 function sekundenGeplant(block, u) {
+  if (block.typ === "gewichtsleiter") return gewichtStufen(block).length * 30 * seitenFaktor(u);
   if (block.typ === "laufband") return zahl(block.dauer);
   if (block.typ === "amrap") return zahl(block.dauer);
-  if (block.typ === "laufband") return zahl(block.dauer);
   if (block.typ === "einfach") return Math.max(1, zahl(block.runden)) * zahl(u.wdh) * SEK_PRO_WDH * seitenFaktor(u);
   if (block.typ === "einzel") return satzListe(u).reduce((a, sz) => a + zahl(sz.wdh) + (einseitig(u) ? zahl(sz.wdhR ?? sz.wdh) : 0), 0) * SEK_PRO_WDH;
   if (block.typ === "leiter") return leiterWdh(block) * SEK_PRO_WDH * seitenFaktor(u);
@@ -391,13 +398,23 @@ const vorlageKettlebell = () => ({
       { id: uid(), name: "Cross Body Climbers", geraet: "Körpergewicht", seiten: "beid", kg: 0, saetzeListe: [], muskeln: m({ core: 55, kardio: 30, schulter: 15 }) },
       { id: uid(), name: "Plank Tuck Jumps", geraet: "Körpergewicht", seiten: "beid", kg: 0, saetzeListe: [], muskeln: m({ kardio: 40, core: 35, beine: 25 }) },
     ]},
-    { id: uid(), typ: "standard", name: "2 · Hauptworkout: 15-Minute Core Burner", auswerten: true,
+    { id: uid(), typ: "gewichtsleiter", name: "2 · Kraft: Schlitten-Leiter", auswerten: true,
+      kgVon: 50, kgBis: 100, kgSchritt: 10, hinweis: "Jede Stufe ein Durchgang – Gewicht steigt in 10er-Schritten", uebungen: [
+      { id: uid(), name: "Sled Pull", geraet: "Schlitten", seiten: "beid", messung: "wdh", saetze: 1, wdh: 1, dauer: 0, kg: 0, pause: 60, saetzeListe: [], muskeln: m({ beine: 40, ruecken: 30, core: 20, arme: 10 }) },
+    ]},
+    { id: uid(), typ: "standard", name: "3 · Hauptworkout: 15-Minute Core Burner", auswerten: true,
       hinweis: "3 Sätze à 30s Belastung / 30s Pause pro Übung", uebungen: [
       { id: uid(), name: "Dead Halos", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 8, pause: 30, saetzeListe: [], muskeln: m({ core: 60, schulter: 30, arme: 10 }) },
       { id: uid(), name: "Around the Slings", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 12, pause: 30, saetzeListe: [], muskeln: m({ core: 55, schulter: 30, arme: 15 }) },
       { id: uid(), name: "Grave Diggers", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 12, pause: 30, saetzeListe: [], muskeln: m({ core: 45, beine: 30, schulter: 25 }) },
       { id: uid(), name: "Tactical Transfers", geraet: "Kettlebell", seiten: "lr1", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 12, pause: 30, saetzeListe: [], muskeln: m({ beine: 45, core: 40, ruecken: 15 }) },
       { id: uid(), name: "Dead Pullovers", geraet: "Kettlebell", seiten: "beid", messung: "zeit", saetze: 3, wdh: 0, dauer: 30, kg: 8, pause: 30, saetzeListe: [], muskeln: m({ core: 45, ruecken: 30, schulter: 25 }) },
+    ]},
+    { id: uid(), typ: "einfach", name: "4 · Cool-down", auswerten: false, runden: 1, uebungen: [
+      { id: uid(), name: "Child's Pose", geraet: "Matte", seiten: "beid", messung: "zeit", saetze: 1, wdh: 0, dauer: 45, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ ruecken: 60, schulter: 40 }) },
+      { id: uid(), name: "Cobra Stretch", geraet: "Matte", seiten: "beid", messung: "zeit", saetze: 1, wdh: 0, dauer: 30, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ core: 60, brust: 40 }) },
+      { id: uid(), name: "Couch Stretch", geraet: "Matte", seiten: "jeSeite", messung: "zeit", saetze: 1, wdh: 0, dauer: 30, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ beine: 100 }) },
+      { id: uid(), name: "Schulter-Stretch", geraet: "Körpergewicht", seiten: "jeSeite", messung: "zeit", saetze: 1, wdh: 0, dauer: 20, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ schulter: 70, arme: 30 }) },
     ]},
   ],
 });
@@ -412,6 +429,7 @@ function normPlan(p) {
       start: b?.start ?? 10, ende: b?.ende ?? 1, schritt: b?.schritt ?? 1, runden: b?.runden ?? 1,
       arbeit: b?.arbeit ?? 20, pause: b?.pause ?? 10, durchgaenge: b?.durchgaenge ?? 3, satzpause: b?.satzpause ?? 30,
       dauer: b?.dauer ?? 1200, stgVon: b?.stgVon ?? 0, stgBis: b?.stgBis ?? 0, tempo: b?.tempo ?? "",
+      kgVon: b?.kgVon ?? 50, kgBis: b?.kgBis ?? 100, kgSchritt: b?.kgSchritt ?? 10,
       uebungen: (Array.isArray(b?.uebungen) ? b.uebungen : []).map((u) => ({
         id: u?.id || uid(), name: u?.name || "", geraet: u?.geraet || "", seiten: u?.seiten || "beid", messung: u?.messung === "zeit" ? "zeit" : "wdh",
         saetze: u?.saetze ?? 3, wdh: u?.wdh ?? 10, dauer: u?.dauer ?? 30, kg: u?.kg ?? 0, pause: u?.pause ?? 60,
@@ -909,6 +927,7 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
         <Btn klein onClick={() => addBlock("einfach")}>+ Zirkel / Warm-up</Btn>
         <Btn klein onClick={() => addBlock("laufband")}>+ Laufband</Btn>
         <Btn klein onClick={() => addBlock("amrap")}>+ AMRAP</Btn>
+        <Btn klein onClick={() => addBlock("gewichtsleiter")}>+ Gewichtsleiter</Btn>
         <Btn klein onClick={() => addBlock("laufband")}>+ Laufband</Btn>
         <Btn klein onClick={() => addBlock("leiter")}>+ Leiter</Btn>
         <Btn klein onClick={() => addBlock("intervall")}>+ Intervall</Btn>
@@ -953,7 +972,7 @@ function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
       </div>
       <div className="flex items-center justify-between mt-2">
         <span className="m text-[11px] uppercase" style={{ color: C.grau }}>
-          {b.typ === "leiter" ? "Leiter" : b.typ === "intervall" ? "Intervall" : b.typ === "einzel" ? "Einzelsätze" : b.typ === "einfach" ? "Zirkel / Warm-up" : b.typ === "laufband" ? "Laufband" : b.typ === "amrap" ? "AMRAP" : "Sätze"}
+          {b.typ === "leiter" ? "Leiter" : b.typ === "intervall" ? "Intervall" : b.typ === "einzel" ? "Einzelsätze" : b.typ === "einfach" ? "Zirkel / Warm-up" : b.typ === "laufband" ? "Laufband" : b.typ === "amrap" ? "AMRAP" : b.typ === "gewichtsleiter" ? "Gewichtsleiter" : "Sätze"}
         </span>
         <label className="b text-xs flex items-center gap-2">
           <input type="checkbox" checked={b.auswerten} onChange={(e) => upd({ ...b, auswerten: e.target.checked })} />
@@ -993,6 +1012,22 @@ function BlockEditor({ b, upd, weg, katalog, katalogSichern }) {
           <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>bis % (max 15)</label>
             <Feld type="number" inputMode="decimal" value={b.stgBis ?? 0}
               onChange={(e) => upd({ ...b, stgBis: Math.min(15, Math.max(0, zahl(e.target.value))) })} /></div>
+        </div>
+      )}
+      {b.typ === "gewichtsleiter" && (
+        <div className="grid grid-cols-3 gap-2 mt-2">
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>von kg</label>
+            <Feld type="number" inputMode="decimal" value={b.kgVon ?? 50}
+              onChange={(e) => upd({ ...b, kgVon: e.target.value })} /></div>
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>bis kg</label>
+            <Feld type="number" inputMode="decimal" value={b.kgBis ?? 100}
+              onChange={(e) => upd({ ...b, kgBis: e.target.value })} /></div>
+          <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Schritt kg</label>
+            <Feld type="number" inputMode="decimal" value={b.kgSchritt ?? 10}
+              onChange={(e) => upd({ ...b, kgSchritt: e.target.value })} /></div>
+          <p className="m text-[11px] col-span-3" style={{ color: C.grau }}>
+            {gewichtStufen(b).length} Stufen: {gewichtStufen(b).join(" · ")} kg
+          </p>
         </div>
       )}
       {b.typ === "amrap" && (
@@ -1429,18 +1464,16 @@ function Start({ plaene, starten, zuPlaenen, merkliste, vormerken, merkWeg, verl
       ...b,
       zeit: 0,
       amrapRunden: 0,
-      erledigt: b.typ === "laufband"
+      erledigt: b.typ === "laufband" || b.typ === "amrap"
         ? []
+        : b.typ === "gewichtsleiter"
+        ? gewichtStufen(b).map(() => b.uebungen.map(() => false))
         : b.typ === "einzel"
         ? b.uebungen.map((u) => satzListe(u).map(() => false))
         : b.typ === "leiter"
         ? leiterRunden(b).map(() => b.uebungen.map(() => false))
         : b.typ === "einfach"
         ? Array.from({ length: Math.max(1, zahl(b.runden)) }, () => b.uebungen.map(() => false))
-        : b.typ === "laufband"
-        ? []
-        : b.typ === "amrap"
-        ? []
         : b.typ === "intervall"
         ? Array.from({ length: zahl(b.durchgaenge) }, () => b.uebungen.map(() => false))
         : b.uebungen.map((u) => Array.from({ length: zahl(u.saetze) || 1 }, () => false)),
@@ -1562,6 +1595,10 @@ function leistungAus(session) {
         leiterRunden(bl).forEach((wdh, ri) => {
           if (istFertig(u, ((bl.erledigt || [])[ri] || [])[ui])) saetze.push({ kg: zahl(u.kg), wdh });
         });
+      } else if (bl.typ === "gewichtsleiter") {
+        gewichtStufen(bl).forEach((kg, ri) => {
+          if (istFertig(u, ((bl.erledigt || [])[ri] || [])[ui])) saetze.push({ kg, wdh: 1 });
+        });
       } else if (bl.typ === "einfach") {
         const n = ((bl.erledigt || []).filter((row) => istFertig(u, (row || [])[ui]))).length;
         for (let k = 0; k < n; k++) saetze.push({ kg: zahl(u.kg), wdh: zahl(u.wdh) });
@@ -1625,7 +1662,8 @@ function Einheit({ session, setSession, beenden, katalog }) {
       id: uid(), typ,
       name: typ === "leiter" ? "Leiter" : typ === "intervall" ? "Intervall"
         : typ === "einzel" ? "Einzelsätze" : typ === "einfach" ? "Zirkel"
-        : typ === "laufband" ? "Laufband" : typ === "amrap" ? "AMRAP" : "Block",
+        : typ === "laufband" ? "Laufband" : typ === "amrap" ? "AMRAP"
+      : typ === "gewichtsleiter" ? "Gewichtsleiter" : "Block",
       auswerten: true, start: 10, ende: 1, schritt: 1, runden: 1, arbeit: 20, pause: 10,
       durchgaenge: 3, satzpause: 30, dauer: 1200, stgVon: 0, stgBis: 0, tempo: "", zeit: 0, amrapRunden: 0,
       erledigt: [],
@@ -1703,6 +1741,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
           {b.hinweis && <p className="b text-sm mb-2" style={{ color: C.grau }}>{b.hinweis}</p>}
           {b.typ === "laufband" ? <LaufbandLauf b={b} />
             : b.typ === "amrap" ? <AmrapLauf b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "gewichtsleiter" ? <GewichtLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "einfach" ? <EinfachLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "einzel" ? <EinzelLauf b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "leiter" ? <LeiterLauf b={b} upd={(n) => setBlock(bi, n)} />
@@ -1842,6 +1881,57 @@ function BlockAnpassen({ b, upd, katalog }) {
             Gilt nur für diese Einheit – dein Plan bleibt, wie er ist.
           </p>
         </Karte>
+      )}
+    </div>
+  );
+}
+
+function GewichtLauf({ b, upd }) {
+  const stufen = gewichtStufen(b);
+  const erl = Array.isArray(b.erledigt) ? b.erledigt : [];
+  const [r0, setR] = useState(0);
+  const r = Math.min(r0, Math.max(0, stufen.length - 1));
+  const reihe = erl[r] || b.uebungen.map(() => false);
+  const um = (ui, bit) => upd({ ...b, erledigt: erl.map((row, i) => (i === r ? row.map((x, j) => (j === ui ? hakenUm(b.uebungen[ui], x, bit) : x)) : row)) });
+  const fertig = (i) => (erl[i] || []).length > 0 && (erl[i] || []).every((x, j) => istFertig(b.uebungen[j], x));
+  const stufeFertig = fertig(r);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => setR(Math.max(0, r - 1))} disabled={r === 0} className="d text-xl"
+          style={{ minWidth: 56, minHeight: 72, border: `1px solid ${C.linie}`, borderRadius: 2, color: r === 0 ? C.linie : C.tinte }}>◂</button>
+        <div className="flex-1 text-center py-1">
+          <span className="d text-6xl leading-none" style={{ color: stufeFertig ? C.gruen : C.tinte }}>{stufen[r]}</span>
+          <span className="b text-sm block" style={{ color: C.grau }}>kg · Stufe {r + 1} von {stufen.length}</span>
+        </div>
+        <button onClick={() => setR(Math.min(stufen.length - 1, r + 1))} disabled={r >= stufen.length - 1} className="d text-xl"
+          style={{ minWidth: 56, minHeight: 72, border: `1px solid ${C.linie}`, borderRadius: 2, color: r >= stufen.length - 1 ? C.linie : C.tinte }}>▸</button>
+      </div>
+
+      <div className="flex h-2 mt-2 gap-px">
+        {stufen.map((_, i) => (
+          <div key={i} className="flex-1" style={{ background: fertig(i) ? C.gruen : i === r ? C.tinte : C.linie }} />
+        ))}
+      </div>
+
+      <ul className="mt-3 space-y-2">
+        {b.uebungen.map((u, ui) => (
+          <li key={u.id} className="flex items-center gap-2">
+            <Haken u={u} wert={reihe[ui]} um={(bit) => um(ui, bit)} hoch={56} />
+            <span className="flex-1 min-w-0">
+              <span className="d text-lg uppercase block truncate">{u.name}</span>
+              <span className="m text-xs" style={{ color: C.grau }}>{stufen[r]} kg{u.geraet && ` · ${u.geraet}`}</span>
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {stufeFertig && r < stufen.length - 1 && (
+        <button onClick={() => setR(r + 1)} className="d uppercase text-lg w-full mt-3"
+          style={{ minHeight: 60, background: C.gruen, color: "#fff", border: `1px solid ${C.gruen}`, borderRadius: 2 }}>
+          Stufe fertig → {stufen[r + 1]} kg
+        </button>
       )}
     </div>
   );
