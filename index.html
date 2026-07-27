@@ -83,7 +83,7 @@
 const { useState, useEffect, useMemo, useRef } = React;
 
 
-const APP_VERSION = "v38";
+const APP_VERSION = "v39";
 
 /* ============ Tokens ============ */
 const C = {
@@ -224,7 +224,7 @@ const textAus = (e) => {
 const rundenTyp = (b) => ["leiter", "intervall", "einfach"].includes(b?.typ);
 
 const ausKatalog = (k, typ) => ({
-  id: uid(), name: k.name, geraet: k.geraet || "", seiten: k.seiten || "beid", messung: "wdh",
+  id: uid(), name: k.name, geraet: k.geraet || "", seiten: k.seiten || "beid", info: k.info || "", messung: "wdh",
   saetze: 3, wdh: k.wdh, dauer: 30, kg: k.kg, pause: 60,
   saetzeListe: typ === "einzel" ? [1, 2, 3].map(() => ({ id: uid(), kg: k.kg, wdh: k.wdh })) : [],
   muskeln: { ...leereMuskeln(), ...k.muskeln },
@@ -266,6 +266,29 @@ function uebungSchieben(b, i, richtung) {
 }
 
 /* ============ UI-Bausteine ============ */
+const InfoKnopf = ({ text }) => {
+  const [auf, setAuf] = useState(false);
+  if (!text) return null;
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }}>
+      <button onClick={(e) => { e.stopPropagation(); setAuf(!auf); }} aria-label="Beschreibung anzeigen" aria-expanded={auf}
+        className="flex items-center justify-center shrink-0"
+        style={{ minWidth: 30, minHeight: 30, borderRadius: "50%",
+          border: `1px solid ${auf ? C.tinte : C.linie}`, background: auf ? C.tinte : "transparent",
+          color: auf ? C.panel : C.grau, fontStyle: "italic", fontWeight: 700, fontSize: 14 }}>i</button>
+      {auf && (
+        <>
+          <span onClick={() => setAuf(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+          <span style={{ position: "absolute", top: "115%", right: 0, zIndex: 41, width: 240,
+            background: C.tinte, color: C.panel, padding: "10px 12px", borderRadius: 4,
+            boxShadow: "0 6px 24px rgba(0,0,0,0.3)" }}
+            className="b text-xs leading-snug">{text}</span>
+        </>
+      )}
+    </span>
+  );
+};
+
 const Stift = () => (
   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
     strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -434,7 +457,7 @@ function normPlan(p) {
       dauer: b?.dauer ?? 1200, stgVon: b?.stgVon ?? 0, stgBis: b?.stgBis ?? 0, tempo: b?.tempo ?? "",
       kgVon: b?.kgVon ?? 50, kgBis: b?.kgBis ?? 100, kgSchritt: b?.kgSchritt ?? 10,
       uebungen: (Array.isArray(b?.uebungen) ? b.uebungen : []).map((u) => ({
-        id: u?.id || uid(), name: u?.name || "", geraet: u?.geraet || "", seiten: u?.seiten || "beid", messung: u?.messung === "zeit" ? "zeit" : "wdh",
+        id: u?.id || uid(), name: u?.name || "", geraet: u?.geraet || "", seiten: u?.seiten || "beid", info: u?.info || "", messung: u?.messung === "zeit" ? "zeit" : "wdh",
         saetze: u?.saetze ?? 3, wdh: u?.wdh ?? 10, dauer: u?.dauer ?? 30, kg: u?.kg ?? 0, pause: u?.pause ?? 60,
         saetzeListe: (Array.isArray(u?.saetzeListe) ? u.saetzeListe : []).map((sz) => ({
           id: sz?.id || uid(), kg: sz?.kg ?? 0, wdh: sz?.wdh ?? 10,
@@ -452,6 +475,18 @@ const EINSEITIG = ["Spider Lunges", "Side Tilts", "Kettlebell Windmill", "Low Ro
 const LINKS_RECHTS = ["Woodchop", "Around the World", "Plank Transfer", "Core Twist",
   "Dead Halos", "Around the Slings", "Grave Diggers", "Tactical Transfers"];
 // Side Tilts: je Seite
+
+const INFO_TEXTE = {
+  "Spider Lunges": "Dynamisch und zügig. Fuß tief neben die Hand setzen, Hüfte öffnen.",
+  "Mountain Climbers": "Sprint-Tempo. Knie explosiv unter der Brust durchziehen.",
+  "Cross Body Climbers": "Knie über Kreuz zum gegenüberliegenden Ellbogen führen. Rumpf fest.",
+  "Plank Tuck Jumps": "Aus der Plank mit beiden Füßen explosiv nach vorne springen und zurück.",
+  "Dead Halos": "Auf dem Rücken (Dead-Bug-Position, Beine 90°). Kettlebell kontrolliert eng um den Kopf kreisen.",
+  "Around the Slings": "Im aufrechten Stand. Kettlebell flüssig um die Hüfte kreisen und Hand wechseln.",
+  "Grave Diggers": "Breiter Stand. Kettlebell tief an der Hüfte greifen und explosiv diagonal nach oben schaufeln.",
+  "Tactical Transfers": "Tiefer Ausfallschritt/Kniebeuge. Kettlebell in flüssiger 8er-Form unter den Beinen durchgeben.",
+  "Dead Pullovers": "Auf dem Rücken (unterer Rücken flach). Kettlebell gestreckt hinter den Kopf absenken und hochziehen.",
+};
 
 const katalogStart = () => [
   ["Figure 8", "Kettlebell", 12, 10, { core: 50, beine: 30, ruecken: 20 }],
@@ -519,6 +554,7 @@ const katalogStart = () => [
 ].map(([name, geraet, kg, wdh, mus]) => ({
   id: uid(), name, geraet, kg, wdh, muskeln: m(mus),
   seiten: EINSEITIG.includes(name) ? "jeSeite" : LINKS_RECHTS.includes(name) ? "lr1" : "beid",
+  info: INFO_TEXTE[name] || "",
 }));
 
 /* ============ App ============ */
@@ -1459,6 +1495,13 @@ function UebungEditor({ u, i, typ, upd, weg, hoch, runter, katalog, katalogSiche
         </label>
       )}
 
+      <div className="mt-2">
+        <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Beschreibung (optional, erscheint als i-Info)</label>
+        <textarea value={u.info || ""} onChange={(e) => upd({ ...u, info: e.target.value })} rows={2}
+          placeholder="z. B. Kettlebell kontrolliert eng um den Kopf kreisen"
+          className="b text-sm w-full px-2 py-2"
+          style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+      </div>
       <MuskelFelder muskeln={u.muskeln} on={(mus) => upd({ ...u, muskeln: mus })} />
 
       {katalogSichern && u.name.trim() && !(katalog || []).some((k) => k.name === u.name) && (
@@ -2176,6 +2219,7 @@ function EinfachLauf({ b, upd }) {
                     {wdhText(u, u.wdh)}{zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
                   </span>
                 </span>
+                <InfoKnopf text={u.info} />
                 <Haken u={u} wert={reihe[ui]} um={(bit) => um(ui, bit)} hoch={52} />
               </div>
             </li>
@@ -2232,7 +2276,7 @@ function EinzelLauf({ b, upd }) {
         return (
           <li key={u.id}><Karte>
             <div className="flex items-baseline justify-between gap-2">
-              <h4 className="d text-xl uppercase leading-tight">{u.name}</h4>
+              <h4 className="d text-xl uppercase leading-tight flex items-center gap-2">{u.name}<InfoKnopf text={u.info} /></h4>
               <span className="m text-xs shrink-0" style={{ color: C.grau }}>
                 {zwei ? "je Seite" : ""}{u.geraet && `${zwei ? " · " : ""}${u.geraet}`}
               </span>
@@ -2321,6 +2365,7 @@ function SaetzeLauf({ b, upd }) {
                   {zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
                 </span>
               </span>
+              <InfoKnopf text={u.info} />
               <Haken u={u} wert={(erl[ui] || [])[0]} um={(bit) => um(ui, bit)} hoch={52} />
             </div>
           </li>
@@ -2390,6 +2435,7 @@ function LeiterLauf({ b, upd }) {
                 {wdhText(u, runden[r])}{zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
               </span>
             </span>
+            <InfoKnopf text={u.info} />
           </li>
         ))}
       </ul>
