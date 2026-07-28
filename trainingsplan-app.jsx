@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
-const APP_VERSION = "v41";
+const APP_VERSION = "v43";
 
 /* ============ Tokens ============ */
 const C = {
@@ -77,6 +77,7 @@ const hakenUm = (u, w, bit) => {
 
 function sekundenGeplant(block, u) {
   if (block.typ === "gewichtsleiter") return gewichtStufen(block).length * 30;
+  if (block.typ === "song") return zahl(block.dauer) || 210;
   if (block.typ === "laufband") return zahl(block.dauer);
   if (block.typ === "amrap") return zahl(block.dauer);
   if (block.typ === "einfach") return Math.max(1, zahl(block.runden)) * zahl(u.wdh) * SEK_PRO_WDH * seitenFaktor(u);
@@ -373,6 +374,7 @@ function normPlan(p) {
       arbeit: b?.arbeit ?? 20, pause: b?.pause ?? 10, durchgaenge: b?.durchgaenge ?? 3, satzpause: b?.satzpause ?? 30,
       dauer: b?.dauer ?? 1200, stgVon: b?.stgVon ?? 0, stgBis: b?.stgBis ?? 0, tempo: b?.tempo ?? "",
       kgVon: b?.kgVon ?? 50, kgBis: b?.kgBis ?? 100, kgSchritt: b?.kgSchritt ?? 10,
+      song: b?.song ?? SONGS[0], dauer: b?.dauer ?? 210,
       uebungen: (Array.isArray(b?.uebungen) ? b.uebungen : []).map((u) => ({
         id: u?.id || uid(), name: u?.name || "", geraet: u?.geraet || "", seiten: u?.seiten || "beid", info: u?.info || "", messung: u?.messung === "zeit" ? "zeit" : "wdh",
         saetze: u?.saetze ?? 3, wdh: u?.wdh ?? 10, dauer: u?.dauer ?? 30, kg: u?.kg ?? 0, pause: u?.pause ?? 60,
@@ -392,6 +394,8 @@ const EINSEITIG = ["Spider Lunges", "Side Tilts", "Kettlebell Windmill", "Low Ro
 const LINKS_RECHTS = ["Woodchop", "Around the World", "Plank Transfer", "Core Twist",
   "Dead Halos", "Around the Slings", "Grave Diggers", "Tactical Transfers"];
 // Side Tilts: je Seite
+
+const SONGS = ["Sally (Flowers – Moby)", "Roxanne (The Police)", "We Will Rock You (Queen)"];
 
 const INFO_TEXTE = {
   "Spider Lunges": "Dynamisch und zügig. Fuß tief neben die Hand setzen, Hüfte öffnen.",
@@ -457,6 +461,14 @@ const INFO_TEXTE = {
   "Burpees": "Aus dem Stand in den Stütz, Liegestütz, zurück und explosiv hochspringen.",
   "Bergsprint / Steigung": "Laufband mit Steigung, zügiges Tempo. Aufrecht laufen, Arme aktiv.",
 };
+
+// Laufende Nachschlagetabelle Name -> Beschreibung, von der App bei Katalogänderung gefüllt.
+let KATALOG_INFO = {};
+const setKatalogInfo = (katalog) => {
+  KATALOG_INFO = {};
+  (katalog || []).forEach((k) => { if (k.info) KATALOG_INFO[k.name] = k.info; });
+};
+const infoZu = (name) => KATALOG_INFO[name] || INFO_TEXTE[name] || "";
 
 const katalogStart = () => [
   ["Figure 8", "Kettlebell", 12, 10, { core: 50, beine: 30, ruecken: 20 }],
@@ -623,6 +635,7 @@ export default function App() {
     setOffen(kopie);
   };
   const katalogSichern = (k) => sichern("katalog2", k, setKatalog);
+  useEffect(() => { setKatalogInfo(katalog); }, [katalog]);
 
   // Trägt fehlende Beschreibungen per Übungsname nach – im Katalog und in allen Plänen.
   const infoNachtragen = () => {
@@ -970,6 +983,7 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
         <Btn klein onClick={() => addBlock("laufband")}>+ Laufband</Btn>
         <Btn klein onClick={() => addBlock("amrap")}>+ AMRAP</Btn>
         <Btn klein onClick={() => addBlock("gewichtsleiter")}>+ Gewichtsleiter</Btn>
+        <Btn klein onClick={() => addBlock("song")}>+ Song-Challenge</Btn>
         <Btn klein onClick={() => addBlock("leiter")}>+ Leiter</Btn>
         <Btn klein onClick={() => addBlock("intervall")}>+ Intervall</Btn>
       </div>
@@ -1034,7 +1048,7 @@ function BlockEditor({ b, upd, weg, hoch, runter, katalog, katalogSichern }) {
       </div>
       <div className="flex items-center justify-between mt-2">
         <span className="m text-[11px] uppercase" style={{ color: C.grau }}>
-          {b.typ === "leiter" ? "Leiter" : b.typ === "intervall" ? "Intervall" : b.typ === "einzel" ? "Einzelsätze" : b.typ === "einfach" ? "Zirkel / Warm-up" : b.typ === "laufband" ? "Laufband" : b.typ === "amrap" ? "AMRAP" : b.typ === "gewichtsleiter" ? "Gewichtsleiter" : "Sätze"}
+          {b.typ === "leiter" ? "Leiter" : b.typ === "intervall" ? "Intervall" : b.typ === "einzel" ? "Einzelsätze" : b.typ === "einfach" ? "Zirkel / Warm-up" : b.typ === "laufband" ? "Laufband" : b.typ === "amrap" ? "AMRAP" : b.typ === "gewichtsleiter" ? "Gewichtsleiter" : b.typ === "song" ? "Song-Challenge" : "Sätze"}
         </span>
         <label className="b text-xs flex items-center gap-2">
           <input type="checkbox" checked={b.auswerten} onChange={(e) => upd({ ...b, auswerten: e.target.checked })} />
@@ -1076,6 +1090,19 @@ function BlockEditor({ b, upd, weg, hoch, runter, katalog, katalogSichern }) {
               onChange={(e) => upd({ ...b, stgBis: Math.min(15, Math.max(0, zahl(e.target.value))) })} /></div>
         </div>
       )}
+      {b.typ === "song" && (
+        <div className="mt-2">
+          <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Lied</label>
+          <select value={b.song || SONGS[0]} onChange={(e) => upd({ ...b, song: e.target.value })}
+            className="m text-sm px-2 py-2 w-full"
+            style={{ background: C.panel, border: `1px solid ${C.linie}`, borderRadius: 2, color: C.tinte, minHeight: 44 }}>
+            {SONGS.map((x) => <option key={x} value={x}>{x}</option>)}
+          </select>
+          <p className="m text-[11px] mt-2" style={{ color: C.grau }}>
+            Übung unten wählen – sie gibt vor, was du zum Lied machst. Das Lied startest du selbst.
+          </p>
+        </div>
+      )}
       {b.typ === "gewichtsleiter" && (
         <div className="grid grid-cols-3 gap-2 mt-2">
           <div><label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Start kg</label>
@@ -1111,7 +1138,7 @@ function BlockEditor({ b, upd, weg, hoch, runter, katalog, katalogSichern }) {
 
       {b.typ !== "laufband" && (
         <button onClick={() => setAuf(!auf)} className="d uppercase text-xs mt-3" style={{ color: C.grau }}>
-          {auf ? "▾" : "▸"} {b.uebungen.length} Übungen
+          {auf ? "▾" : "▸"} {b.typ === "song" ? (b.uebungen.length ? "Übung ändern" : "Übung wählen") : `${b.uebungen.length} Übungen`}
         </button>
       )}
       {auf && (
@@ -1320,6 +1347,13 @@ function Katalog({ katalog, sichern, verlauf, infoNachtragen }) {
             </>
           : <p className="m text-[11px]" style={{ color: C.grau }}>Noch kein Rekord – der kommt aus deinen abgeschlossenen Trainings.</p>}
       </Karte>
+      <div className="mt-3">
+        <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Beschreibung / Ausführung (erscheint als i-Info im Training)</label>
+        <textarea value={offen.info || ""} onChange={(e) => setOffen({ ...offen, info: e.target.value })} rows={3}
+          placeholder="z. B. Kettlebell kontrolliert eng um den Kopf kreisen"
+          className="b text-sm w-full px-2 py-2"
+          style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+      </div>
       <MuskelFelder muskeln={offen.muskeln} on={(mus) => setOffen({ ...offen, muskeln: mus })} />
       <div className="flex flex-wrap gap-2 mt-4">
         <Btn ton="voll" onClick={() => speichern(offen)} disabled={!offen.name.trim()}>Sichern</Btn>
@@ -1481,13 +1515,11 @@ function UebungEditor({ u, i, typ, upd, weg, hoch, runter, katalog, katalogSiche
         </label>
       )}
 
-      <div className="mt-2">
-        <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Beschreibung (optional, erscheint als i-Info)</label>
-        <textarea value={u.info || ""} onChange={(e) => upd({ ...u, info: e.target.value })} rows={2}
-          placeholder="z. B. Kettlebell kontrolliert eng um den Kopf kreisen"
-          className="b text-sm w-full px-2 py-2"
-          style={{ background: C.beton, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
-      </div>
+      {infoZu(u.name) && (
+        <p className="b text-xs mt-2 px-2 py-2" style={{ color: C.grau, background: C.beton, borderRadius: 2 }}>
+          {infoZu(u.name)}
+        </p>
+      )}
       <MuskelFelder muskeln={u.muskeln} on={(mus) => upd({ ...u, muskeln: mus })} />
 
       {katalogSichern && u.name.trim() && !(katalog || []).some((k) => k.name === u.name) && (
@@ -1536,7 +1568,7 @@ function Start({ plaene, starten, zuPlaenen, merkliste, vormerken, merkWeg, verl
       ...b,
       zeit: 0,
       amrapRunden: 0,
-      erledigt: b.typ === "laufband" || b.typ === "amrap"
+      erledigt: b.typ === "laufband" || b.typ === "amrap" || b.typ === "song"
         ? []
         : b.typ === "gewichtsleiter"
         ? gewichtStufen(b).map(() => 0)
@@ -1651,6 +1683,10 @@ function leistungAus(session) {
       if (zahl(bl.amrapRunden) > 0) raus.push({ block, name: bl.name || "AMRAP", geraet: "", info: `${bl.amrapRunden} Runden`, saetze: [] });
       return;
     }
+    if (bl.typ === "song") {
+      if (bl.fertig) { const u0 = bl.uebungen[0]; raus.push({ block, name: u0 ? u0.name : "Song", geraet: u0?.geraet || "", info: bl.song, saetze: [] }); }
+      return;
+    }
     (bl.uebungen || []).forEach((u, ui) => {
       const saetze = [];
       if (bl.typ === "einzel") {
@@ -1749,10 +1785,10 @@ function Einheit({ session, setSession, beenden, katalog }) {
       name: typ === "leiter" ? "Leiter" : typ === "intervall" ? "Intervall"
         : typ === "einzel" ? "Einzelsätze" : typ === "einfach" ? "Zirkel"
         : typ === "laufband" ? "Laufband" : typ === "amrap" ? "AMRAP"
-      : typ === "gewichtsleiter" ? "Gewichtsleiter" : "Block",
+      : typ === "gewichtsleiter" ? "Gewichtsleiter" : typ === "song" ? "Song-Challenge" : "Block",
       auswerten: true, start: 10, ende: 1, schritt: 1, runden: 1, arbeit: 20, pause: 10,
       durchgaenge: 3, satzpause: 30, dauer: 1200, stgVon: 0, stgBis: 0, tempo: "", zeit: 0, amrapRunden: 0,
-      kgVon: 50, kgBis: 100, kgSchritt: 10,
+      kgVon: 50, kgBis: 100, kgSchritt: 10, song: SONGS[0],
       erledigt: [],
       uebungen: typ === "laufband"
         ? [{ id: uid(), name: "Laufen", geraet: "Laufband", seiten: "beid", messung: "zeit",
@@ -1789,6 +1825,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
   const blockFertig = (bl) => {
     if (bl.typ === "laufband") return !!bl.fertig;
     if (bl.typ === "amrap") return zahl(bl.amrapRunden) > 0;
+    if (bl.typ === "song") return !!bl.fertig;
     const erl = bl.erledigt || [];
     if (!erl.length) return false;
     if (bl.typ === "gewichtsleiter") return erl.some((x) => hakenWert(x) > 0);
@@ -1832,7 +1869,8 @@ function Einheit({ session, setSession, beenden, katalog }) {
       {b && (
         <div className="mt-4">
           {b.hinweis && <p className="b text-sm mb-2" style={{ color: C.grau }}>{b.hinweis}</p>}
-          {b.typ === "laufband" ? <LaufbandLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+          {b.typ === "song" ? <SongLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "laufband" ? <LaufbandLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "amrap" ? <AmrapLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "gewichtsleiter" ? <GewichtLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "einfach" ? <EinfachLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
@@ -1840,7 +1878,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
             : b.typ === "leiter" ? <LeiterLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "intervall" ? <IntervallLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : <SaetzeLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />}
-          {b.typ !== "laufband" && b.typ !== "amrap" && <BlockAnpassen b={b} upd={(n) => setBlock(bi, n)} katalog={katalog} />}
+          {b.typ !== "laufband" && b.typ !== "amrap" && b.typ !== "song" && <BlockAnpassen b={b} upd={(n) => setBlock(bi, n)} katalog={katalog} />}
         </div>
       )}
 
@@ -1851,7 +1889,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
         {neuBlock && (
           <div className="flex flex-wrap gap-2 mt-2">
             {[["standard", "Sätze"], ["einzel", "Einzelsätze"], ["leiter", "Leiter"],
-              ["intervall", "Intervall"], ["einfach", "Zirkel"], ["laufband", "Laufband"], ["amrap", "AMRAP"], ["gewichtsleiter", "Gewichtsleiter"]].map(([t, l]) => (
+              ["intervall", "Intervall"], ["einfach", "Zirkel"], ["laufband", "Laufband"], ["amrap", "AMRAP"], ["gewichtsleiter", "Gewichtsleiter"], ["song", "Song-Challenge"]].map(([t, l]) => (
               <Btn klein key={t} onClick={() => blockDazu(t)}>{l}</Btn>
             ))}
           </div>
@@ -2066,6 +2104,36 @@ function GewichtLauf({ b, upd }) {
   );
 }
 
+function SongLauf({ b, upd }) {
+  const u = b.uebungen[0];
+  const fertig = !!b.fertig;
+  return (
+    <div>
+      <div className="p-5 text-center" style={{ background: fertig ? C.gruen : C.tinte, color: fertig ? "#fff" : C.panel, border: `2px solid ${C.tinte}`, borderRadius: 2 }}>
+        <span className="d uppercase text-sm" style={{ opacity: 0.7 }}>{b.song}</span>
+        <div className="d uppercase leading-none my-2 flex items-center justify-center gap-2" style={{ fontSize: 40 }}>
+          {u ? u.name : "keine Übung"}
+          {u && infoZu(u.name) ? <InfoKnopf text={infoZu(u.name)} /> : null}
+        </div>
+        {u && (
+          <span className="m text-xs" style={{ opacity: 0.7 }}>
+            {wdhText(u, u.wdh)}{zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
+          </span>
+        )}
+      </div>
+      <p className="m text-[11px] mt-3 text-center" style={{ color: C.grau }}>
+        Lied selbst starten – die Übung gibt den Takt vor. Durchhalten bis zum Schluss.
+      </p>
+      <button onClick={() => upd({ ...b, fertig: !fertig })}
+        className="d uppercase text-xl w-full mt-3"
+        style={{ minHeight: 76, background: fertig ? C.linie : C.gruen, color: "#fff",
+          border: `1px solid ${fertig ? C.linie : C.gruen}`, borderRadius: 2 }}>
+        {fertig ? "erledigt ✓ – zurücknehmen" : "Challenge geschafft"}
+      </button>
+    </div>
+  );
+}
+
 function LaufbandLauf({ b, upd }) {
   const ziel = zahl(b.dauer);
   const [rest, setRest] = useState(ziel);
@@ -2205,7 +2273,7 @@ function EinfachLauf({ b, upd }) {
                     {wdhText(u, u.wdh)}{zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
                   </span>
                 </span>
-                <InfoKnopf text={u.info} />
+                <InfoKnopf text={infoZu(u.name)} />
                 <Haken u={u} wert={reihe[ui]} um={(bit) => um(ui, bit)} hoch={52} />
               </div>
             </li>
@@ -2262,7 +2330,7 @@ function EinzelLauf({ b, upd }) {
         return (
           <li key={u.id}><Karte>
             <div className="flex items-baseline justify-between gap-2">
-              <h4 className="d text-xl uppercase leading-tight flex items-center gap-2">{u.name}<InfoKnopf text={u.info} /></h4>
+              <h4 className="d text-xl uppercase leading-tight flex items-center gap-2">{u.name}<InfoKnopf text={infoZu(u.name)} /></h4>
               <span className="m text-xs shrink-0" style={{ color: C.grau }}>
                 {zwei ? "je Seite" : ""}{u.geraet && `${zwei ? " · " : ""}${u.geraet}`}
               </span>
@@ -2351,7 +2419,7 @@ function SaetzeLauf({ b, upd }) {
                   {zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
                 </span>
               </span>
-              <InfoKnopf text={u.info} />
+              <InfoKnopf text={infoZu(u.name)} />
               <Haken u={u} wert={(erl[ui] || [])[0]} um={(bit) => um(ui, bit)} hoch={52} />
             </div>
           </li>
@@ -2421,7 +2489,7 @@ function LeiterLauf({ b, upd }) {
                 {wdhText(u, runden[r])}{zahl(u.kg) > 0 && ` · ${u.kg} kg`}{u.geraet && ` · ${u.geraet}`}
               </span>
             </span>
-            <InfoKnopf text={u.info} />
+            <InfoKnopf text={infoZu(u.name)} />
           </li>
         ))}
       </ul>
