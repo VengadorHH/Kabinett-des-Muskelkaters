@@ -83,7 +83,7 @@
 const { useState, useEffect, useMemo, useRef } = React;
 
 
-const APP_VERSION = "v39";
+const APP_VERSION = "v41";
 
 /* ============ Tokens ============ */
 const C = {
@@ -486,6 +486,59 @@ const INFO_TEXTE = {
   "Grave Diggers": "Breiter Stand. Kettlebell tief an der Hüfte greifen und explosiv diagonal nach oben schaufeln.",
   "Tactical Transfers": "Tiefer Ausfallschritt/Kniebeuge. Kettlebell in flüssiger 8er-Form unter den Beinen durchgeben.",
   "Dead Pullovers": "Auf dem Rücken (unterer Rücken flach). Kettlebell gestreckt hinter den Kopf absenken und hochziehen.",
+  "Figure 8": "Breiter Stand, Knie leicht gebeugt. Kettlebell in liegender Acht zwischen den Beinen durchführen.",
+  "Kettlebell Windmill": "Kettlebell über Kopf gestreckt. Hüfte zur Seite schieben, mit geradem Arm zum Boden absenken.",
+  "Goblet Squats": "Kettlebell vor der Brust halten. Tief in die Hocke, Rücken gerade, Knie nach außen.",
+  "Woodchop": "Kettlebell diagonal von unten nach oben über die Schulter führen, aus der Rumpfdrehung.",
+  "Around the World": "Kettlebell kontrolliert um die Hüfte kreisen, an der Rückseite die Hand wechseln.",
+  "Kettlebell Swing": "Aus der Hüfte explosiv schwingen, nicht mit den Armen heben. Rumpf fest, Rücken gerade.",
+  "Turkish Get-up": "Vom Liegen kontrolliert zum Stand, Kettlebell die ganze Zeit über Kopf gestreckt halten.",
+  "Plank Transfer": "In der Plank ein Gewicht kontrolliert von einer Seite zur anderen schieben, Hüfte ruhig.",
+  "Core Twist": "Aufrecht sitzend, Beine leicht angehoben. Gewicht kontrolliert von Seite zu Seite drehen.",
+  "Hollow Hold Bicycle": "Unterer Rücken am Boden. Gegengleich Ellbogen zum Knie führen, Beine gestreckt.",
+  "Plank": "Unterarmstütz, Körper eine Linie von Kopf bis Ferse. Bauch und Gesäß fest anspannen.",
+  "Liegestütze": "Körper gerade, Hände unter den Schultern. Brust kontrolliert zum Boden, Ellbogen eng.",
+  "Kurzhantel-Fliegende": "Auf der Bank, leicht gebeugte Arme. Hanteln im Bogen öffnen und über der Brust schließen.",
+  "Kniebeuge": "Langhantel im Nacken. Tief in die Hocke, Knie über den Zehen, Rücken gerade.",
+  "Kreuzheben": "Stange nah am Körper. Aus Hüfte und Beinen heben, Rücken die ganze Zeit gerade.",
+  "Klimmzüge": "Über Schulterbreite greifen. Kontrolliert hochziehen bis Kinn über die Stange, langsam ablassen.",
+  "Langhantelrudern": "Oberkörper vorgebeugt, Rücken gerade. Stange zum Bauch ziehen, Schulterblätter zusammen.",
+  "Ausfallschritte": "Großer Schritt nach vorn, hinteres Knie Richtung Boden. Oberkörper aufrecht.",
+  "Arm- & Schulterkreisen": "Arme gestreckt große Kreise ziehen, vorwärts und rückwärts. Schultern locker.",
+  "World's Greatest Stretch": "Ausfallschritt, ein Ellbogen zum Boden, dann Brustkorb zur Decke öffnen.",
+  "Deep Squat to Hamstring": "In die tiefe Hocke, dann Beine strecken und Gesäß nach oben schieben.",
+  "Bird Dog": "Vierfüßlerstand. Gegengleich Arm und Bein strecken, Rumpf stabil, Rücken gerade.",
+  "Jumping Jacks": "Hampelmann. Arme und Beine gleichzeitig öffnen und schließen, gleichmäßiges Tempo.",
+  "Bankdrücken (LH)": "Flach auf der Bank. Stange kontrolliert zur Brust, dann kraftvoll nach oben drücken.",
+  "Schrägbankdrücken (KH)": "Schrägbank. Hanteln von der oberen Brust nach oben drücken, Handgelenke stabil.",
+  "Butterfly (Maschine)": "Aufrecht sitzen, Arme leicht gebeugt. Polster kontrolliert vor der Brust zusammenführen.",
+  "Cable Flys": "Aufrecht, leicht vorgebeugt. Seile im Bogen vor der Brust zusammenführen, Spannung halten.",
+  "Überzüge (KH)": "Quer auf der Bank. Hantel gestreckt hinter den Kopf absenken und zurückziehen.",
+  "Trizeps-Drücken einarmig": "Ellbogen fixiert am Körper. Seil einarmig nach unten strecken, oben halten.",
+  "Trizeps-Seil": "Ellbogen eng am Körper. Seil nach unten drücken und am Ende auseinanderziehen.",
+  "Trizeps Überkopf": "Seil hinter dem Kopf. Arme nach oben strecken, Ellbogen zeigen nach vorn.",
+  "Schulterdrücken (LH)": "Stange von der oberen Brust über Kopf drücken. Rumpf fest, kein Hohlkreuz.",
+  "Incline DB Rows": "Bäuchlings auf der Schrägbank. Hanteln zum Körper ziehen, Schulterblätter zusammen.",
+  "Low Row (einseitig)": "Am Seilzug sitzend, einarmig zum Bauch ziehen. Oberkörper stabil, nicht mitdrehen.",
+  "Pull Down": "Griff über Schulterbreite. Zur oberen Brust ziehen, Schulterblätter nach unten.",
+  "Face Pulls": "Seil auf Gesichtshöhe zum Kopf ziehen, Ellbogen hoch, Schulterblätter zusammen.",
+  "Bizeps-Curls": "Ellbogen am Körper fixiert. Hanteln kontrolliert hochrollen, oben kurz halten.",
+  "Incline Laying Curls": "Zurückgelehnt auf der Schrägbank. Arme hängen, Hanteln nur aus dem Bizeps curlen.",
+  "Farmer Walk": "Schwere Gewichte seitlich tragen. Aufrecht gehen, Schultern zurück, Rumpf fest.",
+  "Russian Twist": "Sitzend, Beine angehoben. Gewicht von Seite zu Seite drehen, Rumpf angespannt.",
+  "Side Tilts": "Aufrecht stehen, Kettlebell seitlich. Oberkörper zur Gewichtseite neigen und aufrichten.",
+  "Cable Crunches": "Vor dem Seilzug knien. Aus dem Bauch heraus einrollen, Hüfte bleibt fixiert.",
+  "Holzhacker": "Gewicht diagonal von oben nach unten führen, wie beim Holzhacken. Aus dem Rumpf.",
+  "Seitliche Rotation": "Aufrecht, Arme gestreckt. Gewicht kontrolliert zur Seite drehen, Hüfte stabil.",
+  "Pallof Press": "Seitlich zum Seilzug. Griff vor der Brust nach vorn strecken, Rotation aktiv verhindern.",
+  "Hyperextensions": "Auf dem Gerät, Oberkörper absenken und mit geradem Rücken wieder aufrichten.",
+  "Medizinball Situps": "Rückenlage, Ball hinter dem Kopf. Aufrichten und Ball nach vorn führen.",
+  "Flutter Kicks": "Rückenlage, Beine gestreckt knapp über dem Boden. Schnell auf und ab bewegen.",
+  "Sledge Pull": "Schlitten am Gurt oder Seil ziehen. Tief bleiben, aus Beinen und Rücken arbeiten.",
+  "Crosstrainer": "Gleichmäßiger Lauf, Arme aktiv mitnehmen. Tempo nach Zielvorgabe halten.",
+  "Springseil": "Locker aus den Handgelenken springen, kleine Sprünge, gleichmäßiger Rhythmus.",
+  "Burpees": "Aus dem Stand in den Stütz, Liegestütz, zurück und explosiv hochspringen.",
+  "Bergsprint / Steigung": "Laufband mit Steigung, zügiges Tempo. Aufrecht laufen, Arme aktiv.",
 };
 
 const katalogStart = () => [
@@ -653,6 +706,19 @@ function App() {
     setOffen(kopie);
   };
   const katalogSichern = (k) => sichern("katalog2", k, setKatalog);
+
+  // Trägt fehlende Beschreibungen per Übungsname nach – im Katalog und in allen Plänen.
+  const infoNachtragen = () => {
+    const quelle = {};
+    katalogStart().forEach((k) => { if (k.info) quelle[k.name] = k.info; });
+    const erg = (u) => (u.info ? u : (quelle[u.name] ? { ...u, info: quelle[u.name] } : u));
+    const neuerKatalog = (katalog || []).map(erg);
+    const neuePlaene = (plaene || []).map((p) => ({
+      ...p, bloecke: (p.bloecke || []).map((b) => ({ ...b, uebungen: (b.uebungen || []).map(erg) })),
+    }));
+    sichern("katalog2", neuerKatalog, setKatalog);
+    sichern("plaene2", neuePlaene, setPlaene);
+  };
   const merkliste = Array.isArray(geplant) ? geplant : geplant?.planId ? [geplant] : [];
   const vormerken = (planId, datum) => {
     const drin = merkliste.some((x) => x.planId === planId);
@@ -721,7 +787,7 @@ function App() {
               kopieren={plaene.some((x) => x.id === offen.id) ? planKopieren : null} />
           : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen} verlauf={verlauf} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg}
               vorlage={() => planSichern(vorlageKettlebell())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} backupsLesen={backupsLesen} />
-          : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} verlauf={verlauf} />
+          : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} verlauf={verlauf} infoNachtragen={infoNachtragen} />
           : tab === "training" ? <Start plaene={plaene} starten={setSession} zuPlaenen={() => setTab("plaene")} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg} verlauf={verlauf} />
           : <Bilanz verlauf={verlauf} />}
       </main>
@@ -1253,7 +1319,7 @@ function MuskelFelder({ muskeln, on }) {
 }
 
 /* ============ Katalogseite ============ *//* ============ Katalogseite ============ */
-function Katalog({ katalog, sichern, verlauf }) {
+function Katalog({ katalog, sichern, verlauf, infoNachtragen }) {
   const rekorde = useMemo(() => {
     const map = {};
     (verlauf || []).forEach((e) => {
@@ -1354,11 +1420,14 @@ function Katalog({ katalog, sichern, verlauf }) {
         <Feld value={q} onChange={(e) => setQ(e.target.value)} placeholder="Suchen" />
         <Btn ton="voll" klein onClick={() => setOffen({ id: uid(), name: "", geraet: "", seiten: "beid", kg: 0, wdh: 10, muskeln: leereMuskeln() })}>+ Neu</Btn>
       </div>
-      {katalogStart().some((k) => !(katalog || []).some((x) => x.name === k.name)) && (
-        <Btn klein onClick={() => sichern([...(katalog || []), ...katalogStart().filter((k) => !(katalog || []).some((x) => x.name === k.name))])}>
-          Fehlende Standardübungen ergänzen
-        </Btn>
-      )}
+      <div className="flex flex-wrap gap-2 mt-1">
+        {katalogStart().some((k) => !(katalog || []).some((x) => x.name === k.name)) && (
+          <Btn klein onClick={() => sichern([...(katalog || []), ...katalogStart().filter((k) => !(katalog || []).some((x) => x.name === k.name))])}>
+            Fehlende Standardübungen ergänzen
+          </Btn>
+        )}
+        <Btn klein onClick={infoNachtragen}>Beschreibungen nachtragen</Btn>
+      </div>
       <div className="flex flex-wrap gap-1 mt-3">
         {GRUPPEN.map((g) => {
           const an = filter.includes(g.id);
