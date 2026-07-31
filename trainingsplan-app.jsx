@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 
-const APP_VERSION = "v43";
+const APP_VERSION = "v46";
 
 /* ============ Tokens ============ */
 const C = {
@@ -20,7 +20,7 @@ const GRUPPEN = [
 ];
 const leereMuskeln = () => Object.fromEntries(GRUPPEN.map((g) => [g.id, 0]));
 const SEK_PRO_WDH = 3;
-const GERAETE = ["Langhantel", "Kurzhantel", "Kettlebell", "Seilzug", "Maschine", "Körpergewicht",
+const GERAETE = ["Langhantel", "SZ-Stange", "Kurzhantel", "Kettlebell", "Seilzug", "Maschine", "Körpergewicht",
   "Klimmzugstange", "Bank", "Matte", "Medizinball", "Schlitten", "Springseil", "Laufband", "Ergometer", "Crosstrainer"];
 
 const FONTS = `
@@ -78,6 +78,7 @@ const hakenUm = (u, w, bit) => {
 function sekundenGeplant(block, u) {
   if (block.typ === "gewichtsleiter") return gewichtStufen(block).length * 30;
   if (block.typ === "song") return zahl(block.dauer) || 210;
+  if (block.typ === "superset") return Math.max(1, zahl(block.runden)) * zahl(u.wdh) * SEK_PRO_WDH * seitenFaktor(u);
   if (block.typ === "laufband") return zahl(block.dauer);
   if (block.typ === "amrap") return zahl(block.dauer);
   if (block.typ === "einfach") return Math.max(1, zahl(block.runden)) * zahl(u.wdh) * SEK_PRO_WDH * seitenFaktor(u);
@@ -92,23 +93,42 @@ function sekundenGeplant(block, u) {
    Die Zeit eines Blocks wird nach dem geplanten Umfang seiner Übungen aufgeteilt. */
 const geplantBlock = (b) => b?.typ === "laufband" ? zahl(b.dauer) : (b?.uebungen || []).reduce((a, u) => a + sekundenGeplant(b, u), 0);
 
-function verteilung(bloecke, zeitFn) {
+// Arbeitswert pro Übung: Wiederholungen × (1 + Gewicht-Bonus). Basis für die Gewichtung.
+// Ohne Gewicht zählen reine Wiederholungen/Zeit, mit Gewicht steigt der Wert moderat.
+const SEK_PRO_WDH_FALLBACK = 3;
+const arbeitUebung = (b, u, wdh, kg) => {
+  const w = zahl(wdh) > 0 ? zahl(wdh) : (zahl(u?.dauer) > 0 ? zahl(u.dauer) / SEK_PRO_WDH_FALLBACK : 1);
+  const g = 1 + Math.min(2, zahl(kg) / 40); // Gewicht bis Faktor 3 gedeckelt
+  return Math.max(0.2, w * g) * seitenFaktor(u);
+};
+// Geplante Arbeit eines Blocks (für Vorschau, bevor trainiert wurde)
+const arbeitGeplant = (b) => {
+  if (b?.typ === "laufband") return Math.max(1, zahl(b.dauer) / 20);
+  if (b?.typ === "song") return 10;
+  const runden = ["leiter", "intervall", "einfach", "superset"].includes(b?.typ) ? Math.max(1, zahl(b.runden || b.durchgaenge || 1)) : 1;
+  return (b?.uebungen || []).reduce((a, u) => {
+    const saetze = b?.typ === "standard" ? Math.max(1, zahl(u.saetze)) : 1;
+    return a + arbeitUebung(b, u, u.wdh, u.kg) * saetze * runden;
+  }, 0);
+};
+
+function verteilung(bloecke, arbeitFn) {
   const v = leereMuskeln();
   let gesamt = 0;
   (Array.isArray(bloecke) ? bloecke : []).forEach((b) => {
     if (!b.auswerten) return;
-    const zeit = zahl(zeitFn(b));
-    if (zeit <= 0) return;
-    if (b.typ === "laufband") { v.kardio += zeit; gesamt += zeit; return; }
+    const arbeit = zahl(arbeitFn(b));
+    if (arbeit <= 0) return;
+    if (b.typ === "laufband") { v.kardio += arbeit; gesamt += arbeit; return; }
     const uebungen = b.uebungen || [];
-    const gewicht = uebungen.map((u) => sekundenGeplant(b, u) || 1);
+    const gewicht = uebungen.map((u) => arbeitUebung(b, u, u.wdh, u.kg) || 1);
     const gsum = gewicht.reduce((a, x) => a + x, 0) || 1;
     uebungen.forEach((u, i) => {
-      const anteil = (zeit * gewicht[i]) / gsum;
+      const anteil = (arbeit * gewicht[i]) / gsum;
       const summe = GRUPPEN.reduce((a, g) => a + zahl(u.muskeln?.[g.id]), 0) || 1;
       GRUPPEN.forEach((g) => { v[g.id] += (anteil * zahl(u.muskeln?.[g.id])) / summe; });
     });
-    gesamt += zeit;
+    gesamt += arbeit;
   });
   return { v, gesamt };
 }
@@ -139,7 +159,7 @@ const textAus = (e) => {
 };
 
 /* ============ Übungen umsortieren und ergänzen ============ */
-const rundenTyp = (b) => ["leiter", "intervall", "einfach"].includes(b?.typ);
+const rundenTyp = (b) => ["leiter", "intervall", "einfach", "superset"].includes(b?.typ);
 
 const ausKatalog = (k, typ) => ({
   id: uid(), name: k.name, geraet: k.geraet || "", seiten: k.seiten || "beid", info: k.info || "", messung: "wdh",
@@ -327,7 +347,7 @@ function Auswertung({ v, gesamt, titel = "Muskelgewichtung", kompakt }) {
 const m = (o) => ({ ...leereMuskeln(), ...o });
 const uid = () => Math.random().toString(36).slice(2, 9);
 const vorlageKettlebell = () => ({
-  id: uid(), name: "Suffering Sunday", notiz: "Joint Mobility & Full Routine · Kettlebell · ca. 30 min",
+  id: uid(), name: "Suffering Sunday", notiz: "Joint Mobility & Full Routine · Kettlebell · ca. 30 min", vorlage: true,
   bloecke: [
     { id: uid(), typ: "einfach", name: "0 · Gelenk-Mobilisation", auswerten: false, runden: 1, uebungen: [
       { id: uid(), name: "Armkreisen & Thorax-Rotation", geraet: "Körpergewicht", seiten: "beid", messung: "wdh", saetze: 1, wdh: 10, dauer: 0, kg: 0, pause: 0, saetzeListe: [], muskeln: m({ schulter: 70, ruecken: 30 }) },
@@ -366,7 +386,7 @@ const vorlageKettlebell = () => ({
 /* Alte oder unvollstaendige Plaene auf das aktuelle Format bringen */
 function normPlan(p) {
   return {
-    id: p?.id || uid(), name: p?.name || "", notiz: p?.notiz || "",
+    id: p?.id || uid(), name: p?.name || "", notiz: p?.notiz || "", vorlage: p?.vorlage === true,
     bloecke: (Array.isArray(p?.bloecke) ? p.bloecke : []).map((b) => ({
       id: b?.id || uid(), typ: b?.typ || "standard", name: b?.name || "Block",
       auswerten: b?.auswerten !== false, hinweis: b?.hinweis || "",
@@ -444,6 +464,9 @@ const INFO_TEXTE = {
   "Pull Down": "Griff über Schulterbreite. Zur oberen Brust ziehen, Schulterblätter nach unten.",
   "Face Pulls": "Seil auf Gesichtshöhe zum Kopf ziehen, Ellbogen hoch, Schulterblätter zusammen.",
   "Bizeps-Curls": "Ellbogen am Körper fixiert. Hanteln kontrolliert hochrollen, oben kurz halten.",
+  "Reverse Curls (Z-Stange)": "Obergriff (Handrücken nach oben). Z-Stange aus dem Unterarm heraus hochcurlen, Ellbogen fix.",
+  "Preacher Curls": "Oberarme fest auf dem Schrägpolster. Stange voll ausstrecken und sauber hochcurlen, kein Schwung.",
+  "Hammer Curls": "Neutraler Griff (Daumen oben). Hanteln wie einen Hammer hochführen, Ellbogen am Körper.",
   "Incline Laying Curls": "Zurückgelehnt auf der Schrägbank. Arme hängen, Hanteln nur aus dem Bizeps curlen.",
   "Farmer Walk": "Schwere Gewichte seitlich tragen. Aufrecht gehen, Schultern zurück, Rumpf fest.",
   "Russian Twist": "Sitzend, Beine angehoben. Gewicht von Seite zu Seite drehen, Rumpf angespannt.",
@@ -508,6 +531,9 @@ const katalogStart = () => [
   ["Pull Down", "Maschine", 100, 10, { ruecken: 65, arme: 25, schulter: 10 }],
   ["Face Pulls", "Seilzug", 35, 12, { schulter: 60, ruecken: 30, arme: 10 }],
   ["Bizeps-Curls", "Kurzhantel", 12.5, 10, { arme: 90, schulter: 10 }],
+  ["Reverse Curls (Z-Stange)", "SZ-Stange", 20, 10, { arme: 80, ruecken: 20 }],
+  ["Preacher Curls", "SZ-Stange", 25, 8, { arme: 95, schulter: 5 }],
+  ["Hammer Curls", "Kurzhantel", 14, 10, { arme: 85, ruecken: 15 }],
   ["Incline Laying Curls", "Kurzhantel", 15, 8, { arme: 95, schulter: 5 }],
   ["Farmer Walk", "Kurzhantel", 50, 40, { arme: 30, ruecken: 30, core: 25, beine: 15 }],
   ["Russian Twist", "Kurzhantel", 10, 20, { core: 90, arme: 10 }],
@@ -635,6 +661,26 @@ export default function App() {
     setOffen(kopie);
   };
   const katalogSichern = (k) => sichern("katalog2", k, setKatalog);
+
+  // Tiefe Kopie eines Plans mit frischen IDs
+  const planTiefKopie = (p, name, alsVorlage) => ({
+    ...p, id: uid(), name, vorlage: alsVorlage,
+    bloecke: (p.bloecke || []).map((b) => ({
+      ...b, id: uid(),
+      uebungen: (b.uebungen || []).map((u) => ({
+        ...u, id: uid(),
+        saetzeListe: (u.saetzeListe || []).map((sz) => ({ ...sz, id: uid() })),
+        muskeln: { ...u.muskeln },
+      })),
+    })),
+  });
+  // Aus Vorlage einen Tagesplan ableiten (Kopie, keine Vorlage, mit Datum im Namen)
+  const planAbleiten = (p) => {
+    const heute = new Date().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+    planSichern(planTiefKopie(p, `${p.name || "Plan"} · ${heute}`, false));
+  };
+  // Plan zwischen Vorlage und normalem Plan umschalten
+  const vorlageUmschalten = (p) => planSichern({ ...p, vorlage: !p.vorlage });
   useEffect(() => { setKatalogInfo(katalog); }, [katalog]);
 
   // Trägt fehlende Beschreibungen per Übungsname nach – im Katalog und in allen Plänen.
@@ -716,7 +762,8 @@ export default function App() {
               weg={plaene.some((x) => x.id === offen.id) ? () => { planWeg(offen.id); setOffen(null); } : null}
               kopieren={plaene.some((x) => x.id === offen.id) ? planKopieren : null} />
           : tab === "plaene" ? <Plaene plaene={plaene} bearbeiten={setOffen} verlauf={verlauf} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg}
-              vorlage={() => planSichern(vorlageKettlebell())} sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} backupsLesen={backupsLesen} />
+              ableiten={planAbleiten} vorlageUmschalten={vorlageUmschalten}
+              sicherung={{ plaene, verlauf, katalog }} einspielen={einspielen} backupsLesen={backupsLesen} />
           : tab === "uebungen" ? <Katalog katalog={katalog} sichern={katalogSichern} verlauf={verlauf} infoNachtragen={infoNachtragen} />
           : tab === "training" ? <Start plaene={plaene} starten={setSession} zuPlaenen={() => setTab("plaene")} merkliste={merkliste} vormerken={vormerken} merkWeg={merkWeg} verlauf={verlauf} />
           : <Bilanz verlauf={verlauf} />}
@@ -875,56 +922,84 @@ const planHistorie = (verlauf, p) => {
 };
 const datumKurz = (d) => new Date(d).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
 
-function Plaene({ plaene, bearbeiten, vorlage, sicherung, einspielen, verlauf, merkliste, vormerken, merkWeg, backupsLesen }) {
-  const neu = () => bearbeiten({ id: uid(), name: "", notiz: "", bloecke: [] });
+function Plaene({ plaene, bearbeiten, ableiten, vorlageUmschalten, sicherung, einspielen, verlauf, merkliste, vormerken, merkWeg, backupsLesen }) {
+  const neu = () => bearbeiten({ id: uid(), name: "", notiz: "", bloecke: [], vorlage: false });
+  const vorlagen = plaene.filter((p) => p.vorlage);
+  const aktuelle = plaene.filter((p) => !p.vorlage);
+
+  const PlanKarte = ({ p }) => {
+    const bl = Array.isArray(p.bloecke) ? p.bloecke : [];
+    const hist = planHistorie(verlauf, p);
+    const eintrag = merkliste.find((x) => x.planId === p.id);
+    const { v, gesamt } = verteilung(bl, arbeitGeplant);
+    return (
+      <Karte>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="d text-xl uppercase leading-tight">{p.name || "Ohne Namen"}</h3>
+            <p className="m text-[11px]" style={{ color: C.grau }}>
+              {bl.length} Blöcke · {bl.reduce((a, b) => a + (b.uebungen?.length || 0), 0)} Übungen
+            </p>
+            <p className="m text-[11px]" style={{ color: C.grau }}>
+              {hist.anzahl > 0
+                ? `${hist.anzahl}× absolviert · zuletzt ${datumKurz(hist.letzte)}`
+                : "noch nie absolviert"}
+            </p>
+          </div>
+          <div className="flex gap-1 shrink-0">
+            <StiftKnopf onClick={() => bearbeiten(p)} titel="Plan bearbeiten" />
+          </div>
+        </div>
+
+        {p.vorlage ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Btn ton="voll" klein onClick={() => ableiten(p)}>Für heute ableiten</Btn>
+            <Btn klein onClick={() => vorlageUmschalten(p)}>keine Vorlage mehr</Btn>
+          </div>
+        ) : (
+          <>
+            <div className="mt-2">
+              {eintrag
+                ? <div className="flex items-center gap-2 px-2 py-2" style={{ background: C.gruen, color: "#fff", borderRadius: 2 }}>
+                    <span className="d uppercase text-xs flex-1">
+                      Vorgemerkt{eintrag.datum ? ` für ${datumKurz(eintrag.datum)}` : ""}
+                    </span>
+                    <button className="d uppercase text-[11px] px-2 py-1"
+                      style={{ border: "1px solid #fff", borderRadius: 2 }}
+                      onClick={() => merkWeg(p.id)}>lösen</button>
+                  </div>
+                : <div className="flex flex-wrap gap-2">
+                    <Btn klein onClick={() => vormerken(p.id)}>Vormerken</Btn>
+                    <Btn klein onClick={() => vorlageUmschalten(p)}>als Vorlage</Btn>
+                  </div>}
+            </div>
+          </>
+        )}
+        <div className="mt-3"><Auswertung v={v} gesamt={gesamt} titel="Geplante Gewichtung" /></div>
+      </Karte>
+    );
+  };
+
   return (
     <div>
-      <p className="m text-[11px] mb-2" style={{ color: C.grau }}>Vorlagen</p>
       <div className="flex flex-wrap gap-2">
         <Btn ton="voll" onClick={neu}>+ Neuer Plan</Btn>
-        <Btn onClick={vorlage}>Vorlage: Suffering Sunday</Btn>
       </div>
-      <ul className="mt-4 space-y-2">
-        {plaene.map((p) => {
-          const bl = Array.isArray(p.bloecke) ? p.bloecke : [];
-          const hist = planHistorie(verlauf, p);
-          const eintrag = merkliste.find((x) => x.planId === p.id);
-          const { v, gesamt } = verteilung(bl, geplantBlock);
-          return (
-            <li key={p.id}><Karte>
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <h3 className="d text-xl uppercase leading-tight">{p.name || "Ohne Namen"}</h3>
-                  <p className="m text-[11px]" style={{ color: C.grau }}>
-                    {bl.length} Blöcke · {bl.reduce((a, b) => a + (b.uebungen?.length || 0), 0)} Übungen
-                  </p>
-                  <p className="m text-[11px]" style={{ color: C.grau }}>
-                    {hist.anzahl > 0
-                      ? `${hist.anzahl}× absolviert · zuletzt ${datumKurz(hist.letzte)}`
-                      : "noch nie absolviert"}
-                  </p>
-                </div>
-                <div className="flex gap-1 shrink-0">
-                  <StiftKnopf onClick={() => bearbeiten(p)} titel="Plan bearbeiten" />
-                </div>
-              </div>
-              <div className="mt-2">
-                {eintrag
-                  ? <div className="flex items-center gap-2 px-2 py-2" style={{ background: C.gruen, color: "#fff", borderRadius: 2 }}>
-                      <span className="d uppercase text-xs flex-1">
-                        Vorgemerkt{eintrag.datum ? ` für ${datumKurz(eintrag.datum)}` : ""}
-                      </span>
-                      <button className="d uppercase text-[11px] px-2 py-1"
-                        style={{ border: "1px solid #fff", borderRadius: 2 }}
-                        onClick={() => merkWeg(p.id)}>lösen</button>
-                    </div>
-                  : <Btn klein onClick={() => vormerken(p.id)}>Vormerken</Btn>}
-              </div>
-              <div className="mt-3"><Auswertung v={v} gesamt={gesamt} titel="Geplante Gewichtung" /></div>
-            </Karte></li>
-          );
-        })}
-      </ul>
+
+      <p className="m text-[11px] mt-5 mb-2 uppercase" style={{ color: C.grau, letterSpacing: "0.05em" }}>
+        Vorlagen{vorlagen.length ? ` (${vorlagen.length})` : ""}
+      </p>
+      {vorlagen.length === 0
+        ? <p className="m text-xs" style={{ color: C.grau }}>Noch keine Vorlagen. Bei einem Plan unten „als Vorlage" tippen.</p>
+        : <ul className="space-y-2">{vorlagen.map((p) => <li key={p.id}><PlanKarte p={p} /></li>)}</ul>}
+
+      <p className="m text-[11px] mt-6 mb-2 uppercase" style={{ color: C.grau, letterSpacing: "0.05em", borderTop: `1px solid ${C.linie}`, paddingTop: 14 }}>
+        Aktuelle Pläne{aktuelle.length ? ` (${aktuelle.length})` : ""}
+      </p>
+      {aktuelle.length === 0
+        ? <p className="m text-xs" style={{ color: C.grau }}>Noch keine aktuellen Pläne. Aus einer Vorlage „Für heute ableiten“ oder neu anlegen.</p>
+        : <ul className="space-y-2">{aktuelle.map((p) => <li key={p.id}><PlanKarte p={p} /></li>)}</ul>}
+
       <Daten sicherung={sicherung} einspielen={einspielen} backupsLesen={backupsLesen} />
     </div>
   );
@@ -957,13 +1032,22 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
       : typ === "laufband" ? "Laufband" : "Block",
     auswerten: true, start: 10, ende: 1, schritt: 1, runden: 1, arbeit: 20, pause: 10, durchgaenge: 3, satzpause: 30,
     dauer: 1200, steigung: 0, tempo: "", uebungen: [] }] });
-  const { v, gesamt } = verteilung(p.bloecke, geplantBlock);
+  const { v, gesamt } = verteilung(p.bloecke, arbeitGeplant);
 
   return (
     <div>
       <h2 className="d text-2xl uppercase">Plan bearbeiten</h2>
       <Feld className="mt-3" value={p.name} onChange={(e) => upd("name", e.target.value)} placeholder="Name des Plans" />
       <Feld className="mt-2" value={p.notiz || ""} onChange={(e) => upd("notiz", e.target.value)} placeholder="Notiz, z. B. Gewichtsvorgabe" />
+      <button onClick={() => upd("vorlage", !p.vorlage)}
+        className="flex items-center gap-2 mt-3" aria-pressed={!!p.vorlage}>
+        <span className="flex items-center justify-center" style={{ width: 44, height: 26, borderRadius: 13,
+          background: p.vorlage ? C.gruen : C.linie, position: "relative", transition: "background 0.15s" }}>
+          <span style={{ width: 20, height: 20, borderRadius: "50%", background: "#fff", position: "absolute",
+            top: 3, left: p.vorlage ? 21 : 3, transition: "left 0.15s" }} />
+        </span>
+        <span className="d uppercase text-xs" style={{ color: C.tinte }}>Als Vorlage speichern</span>
+      </button>
 
       <div className="mt-4"><Karte><Auswertung v={v} gesamt={gesamt} titel="Gewichtung dieses Plans" /></Karte></div>
 
@@ -984,6 +1068,7 @@ function Editor({ plan, sichern: save, zurueck, weg, kopieren, katalog, katalogS
         <Btn klein onClick={() => addBlock("amrap")}>+ AMRAP</Btn>
         <Btn klein onClick={() => addBlock("gewichtsleiter")}>+ Gewichtsleiter</Btn>
         <Btn klein onClick={() => addBlock("song")}>+ Song-Challenge</Btn>
+        <Btn klein onClick={() => addBlock("superset")}>+ Supersatz</Btn>
         <Btn klein onClick={() => addBlock("leiter")}>+ Leiter</Btn>
         <Btn klein onClick={() => addBlock("intervall")}>+ Intervall</Btn>
       </div>
@@ -1048,7 +1133,7 @@ function BlockEditor({ b, upd, weg, hoch, runter, katalog, katalogSichern }) {
       </div>
       <div className="flex items-center justify-between mt-2">
         <span className="m text-[11px] uppercase" style={{ color: C.grau }}>
-          {b.typ === "leiter" ? "Leiter" : b.typ === "intervall" ? "Intervall" : b.typ === "einzel" ? "Einzelsätze" : b.typ === "einfach" ? "Zirkel / Warm-up" : b.typ === "laufband" ? "Laufband" : b.typ === "amrap" ? "AMRAP" : b.typ === "gewichtsleiter" ? "Gewichtsleiter" : b.typ === "song" ? "Song-Challenge" : "Sätze"}
+          {b.typ === "leiter" ? "Leiter" : b.typ === "intervall" ? "Intervall" : b.typ === "einzel" ? "Einzelsätze" : b.typ === "einfach" ? "Zirkel / Warm-up" : b.typ === "laufband" ? "Laufband" : b.typ === "amrap" ? "AMRAP" : b.typ === "gewichtsleiter" ? "Gewichtsleiter" : b.typ === "song" ? "Song-Challenge" : b.typ === "superset" ? "Supersatz" : "Sätze"}
         </span>
         <label className="b text-xs flex items-center gap-2">
           <input type="checkbox" checked={b.auswerten} onChange={(e) => upd({ ...b, auswerten: e.target.checked })} />
@@ -1072,6 +1157,14 @@ function BlockEditor({ b, upd, weg, hoch, runter, katalog, katalogSichern }) {
           <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Runden (1 = Warm-up, mehr = Zirkel)</label>
           <Feld type="number" inputMode="numeric" value={b.runden ?? 1}
             onChange={(e) => upd({ ...b, runden: e.target.value })} />
+        </div>
+      )}
+      {b.typ === "superset" && (
+        <div className="mt-2">
+          <label className="m text-[10px] block mb-1" style={{ color: C.grau }}>Durchgänge (Runden im Wechsel)</label>
+          <Feld type="number" inputMode="numeric" value={b.runden ?? 3}
+            onChange={(e) => upd({ ...b, runden: e.target.value })} />
+          <p className="m text-[11px] mt-1" style={{ color: C.grau }}>Übungen unten werden pro Runde nacheinander abgearbeitet.</p>
         </div>
       )}
       {b.typ === "laufband" && (
@@ -1479,10 +1572,10 @@ function UebungEditor({ u, i, typ, upd, weg, hoch, runter, katalog, katalogSiche
         </div>
       )}
 
-      {(typ === "einfach" || typ === "amrap") && (
+      {(typ === "einfach" || typ === "amrap" || typ === "superset") && (
         <div className="grid grid-cols-2 gap-2 mt-2">
           <Num l="Wdh je Runde" v={u.wdh} on={(x) => upd({ ...u, wdh: x })} />
-          <Num l="kg (optional)" v={u.kg} on={(x) => upd({ ...u, kg: x })} />
+          <Num l="kg" v={u.kg} on={(x) => upd({ ...u, kg: x })} />
         </div>
       )}
 
@@ -1707,7 +1800,7 @@ function leistungAus(session) {
         if (ui === 0) gewichtStufen(bl).forEach((kg, ri) => {
           if (hakenWert((bl.erledigt || [])[ri]) > 0) saetze.push({ kg, wdh: 1 });
         });
-      } else if (bl.typ === "einfach") {
+      } else if (bl.typ === "einfach" || bl.typ === "superset") {
         const n = ((bl.erledigt || []).filter((row) => istFertig(u, (row || [])[ui]))).length;
         for (let k = 0; k < n; k++) saetze.push({ kg: zahl(u.kg), wdh: zahl(u.wdh) });
       } else if (bl.typ === "intervall") {
@@ -1785,7 +1878,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
       name: typ === "leiter" ? "Leiter" : typ === "intervall" ? "Intervall"
         : typ === "einzel" ? "Einzelsätze" : typ === "einfach" ? "Zirkel"
         : typ === "laufband" ? "Laufband" : typ === "amrap" ? "AMRAP"
-      : typ === "gewichtsleiter" ? "Gewichtsleiter" : typ === "song" ? "Song-Challenge" : "Block",
+      : typ === "gewichtsleiter" ? "Gewichtsleiter" : typ === "song" ? "Song-Challenge" : typ === "superset" ? "Supersatz" : "Block",
       auswerten: true, start: 10, ende: 1, schritt: 1, runden: 1, arbeit: 20, pause: 10,
       durchgaenge: 3, satzpause: 30, dauer: 1200, stgVon: 0, stgBis: 0, tempo: "", zeit: 0, amrapRunden: 0,
       kgVon: 50, kgBis: 100, kgSchritt: 10, song: SONGS[0],
@@ -1820,7 +1913,34 @@ function Einheit({ session, setSession, beenden, katalog }) {
     i === bi && session.aktivSeit ? { ...b, zeit: zahl(b.zeit) + (jetzt - session.aktivSeit) / 1000 } : b
   );
   const blockZeit = (i) => zahl(bloeckeJetzt[i]?.zeit);
-  const { v, gesamt } = verteilung(bloeckeJetzt, (b) => zahl(b.zeit));
+  // Arbeit aus dem, was in dieser Einheit wirklich abgehakt wurde (nicht aus der Uhr).
+  const arbeitGemessen = (b) => {
+    if (b.typ === "laufband") return b.fertig ? Math.max(1, zahl(b.dauer) / 20) : 0;
+    if (b.typ === "song") return b.fertig ? 10 : 0;
+    if (b.typ === "amrap") return zahl(b.amrapRunden) * (b.uebungen || []).reduce((a, u) => a + arbeitUebung(b, u, u.wdh, u.kg), 0);
+    if (b.typ === "gewichtsleiter") {
+      const stufen = gewichtStufen(b);
+      return (b.erledigt || []).reduce((a, x, i) => a + (hakenWert(x) > 0 ? arbeitUebung(b, b.uebungen[0], 1, stufen[i]) : 0), 0);
+    }
+    if (b.typ === "einzel") {
+      return (b.uebungen || []).reduce((a, u, ui) => a + satzListe(u).reduce((s, sz, si) =>
+        s + (istFertig(u, ((b.erledigt || [])[ui] || [])[si]) ? arbeitUebung(b, u, sz.wdh, sz.kg) : 0), 0), 0);
+    }
+    if (b.typ === "standard") {
+      return (b.uebungen || []).reduce((a, u, ui) => {
+        const n = ((b.erledigt || [])[ui] || []).filter((x) => istFertig(u, x)).length;
+        return a + n * arbeitUebung(b, u, u.wdh, u.kg);
+      }, 0);
+    }
+    // rundenbasiert: leiter, intervall, einfach, superset
+    return (b.erledigt || []).reduce((rowAcc, row, ri) =>
+      rowAcc + (b.uebungen || []).reduce((a, u, ui) => {
+        if (!istFertig(u, (row || [])[ui])) return a;
+        const wdh = b.typ === "leiter" ? (leiterRunden(b)[ri] ?? u.wdh) : u.wdh;
+        return a + arbeitUebung(b, u, wdh, u.kg);
+      }, 0), 0);
+  };
+  const { v, gesamt } = verteilung(bloeckeJetzt, arbeitGemessen);
 
   const blockFertig = (bl) => {
     if (bl.typ === "laufband") return !!bl.fertig;
@@ -1870,6 +1990,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
         <div className="mt-4">
           {b.hinweis && <p className="b text-sm mb-2" style={{ color: C.grau }}>{b.hinweis}</p>}
           {b.typ === "song" ? <SongLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
+            : b.typ === "superset" ? <SupersatzLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "laufband" ? <LaufbandLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "amrap" ? <AmrapLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
             : b.typ === "gewichtsleiter" ? <GewichtLauf key={b.id} b={b} upd={(n) => setBlock(bi, n)} />
@@ -1889,7 +2010,7 @@ function Einheit({ session, setSession, beenden, katalog }) {
         {neuBlock && (
           <div className="flex flex-wrap gap-2 mt-2">
             {[["standard", "Sätze"], ["einzel", "Einzelsätze"], ["leiter", "Leiter"],
-              ["intervall", "Intervall"], ["einfach", "Zirkel"], ["laufband", "Laufband"], ["amrap", "AMRAP"], ["gewichtsleiter", "Gewichtsleiter"], ["song", "Song-Challenge"]].map(([t, l]) => (
+              ["intervall", "Intervall"], ["einfach", "Zirkel"], ["laufband", "Laufband"], ["amrap", "AMRAP"], ["gewichtsleiter", "Gewichtsleiter"], ["song", "Song-Challenge"], ["superset", "Supersatz"]].map(([t, l]) => (
               <Btn klein key={t} onClick={() => blockDazu(t)}>{l}</Btn>
             ))}
           </div>
@@ -1967,7 +2088,7 @@ function BlockAnpassen({ b, upd, katalog }) {
   return (
     <div className="mt-5">
       <button onClick={() => setAuf(!auf)} className="d uppercase text-xs" style={{ color: C.grau }}>
-        {auf ? "▾" : "▸"} Block anpassen
+        {auf ? "▾" : "▸"} Block anpassen · Gerät wechseln
       </button>
       {auf && (
         <Karte className="mt-2">
@@ -2100,6 +2221,71 @@ function GewichtLauf({ b, upd }) {
       <p className="m text-[11px] mt-2 text-center" style={{ color: C.grau }}>
         {gemacht} von {stufen.length} Stufen geschafft · −/+ hebt ab hier um {schritt} kg
       </p>
+    </div>
+  );
+}
+
+function SupersatzLauf({ b, upd }) {
+  const runden = Math.max(1, zahl(b.runden));
+  const erl = Array.isArray(b.erledigt) ? b.erledigt : [];
+  const [r0, setR] = useState(0);
+  const r = Math.min(r0, runden - 1);
+  const reihe = erl[r] || b.uebungen.map(() => false);
+  const um = (ui, bit) => upd({ ...b, erledigt: erl.map((row, i) => (i === r ? row.map((x, j) => (j === ui ? hakenUm(b.uebungen[ui], x, bit) : x)) : row)) });
+  const setWert = (ui, feld, wert) => upd({ ...b, uebungen: b.uebungen.map((u, j) => (j === ui ? { ...u, [feld]: wert } : u)) });
+  const fertig = (i) => b.uebungen.length > 0 && (erl[i] || []).every((x, j) => istFertig(b.uebungen[j], x));
+  const rundeFertig = fertig(r);
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <button onClick={() => setR(Math.max(0, r - 1))} disabled={r === 0} className="d text-xl"
+          style={{ minWidth: 52, minHeight: 64, border: `1px solid ${C.linie}`, borderRadius: 2, color: r === 0 ? C.linie : C.tinte }}>◂</button>
+        <div className="flex-1 text-center">
+          <span className="d text-4xl leading-none" style={{ color: rundeFertig ? C.gruen : C.tinte }}>{r + 1}</span>
+          <span className="b text-sm block" style={{ color: C.grau }}>von {runden} Durchgängen</span>
+        </div>
+        <button onClick={() => setR(Math.min(runden - 1, r + 1))} disabled={r >= runden - 1} className="d text-xl"
+          style={{ minWidth: 52, minHeight: 64, border: `1px solid ${C.linie}`, borderRadius: 2, color: r >= runden - 1 ? C.linie : C.tinte }}>▸</button>
+      </div>
+
+      <div className="flex h-2 mt-2 gap-px">
+        {Array.from({ length: runden }, (_, i) => (
+          <div key={i} className="flex-1" style={{ background: fertig(i) ? C.gruen : i === r ? C.tinte : C.linie }} />
+        ))}
+      </div>
+
+      <ul className="mt-3 space-y-2">
+        {b.uebungen.map((u, ui) => {
+          const an = istFertig(u, reihe[ui]);
+          return (
+            <li key={u.id} className="p-3" style={{ background: an ? C.gruen : C.panel, border: `1px solid ${an ? C.gruen : C.linie}`, borderRadius: 2 }}>
+              <div className="flex items-center gap-2">
+                <span className="d text-lg shrink-0" style={{ width: 20, color: an ? "#fff" : C.grau }}>{ui + 1}</span>
+                <span className="d text-lg uppercase flex-1 min-w-0 truncate flex items-center gap-2" style={{ color: an ? "#fff" : C.tinte }}>
+                  {u.name}<InfoKnopf text={infoZu(u.name)} />
+                </span>
+                <Haken u={u} wert={reihe[ui]} um={(bit) => um(ui, bit)} hoch={44} />
+              </div>
+              <div className="flex items-center gap-2 mt-2 pl-7">
+                <input type="number" inputMode="decimal" value={u.kg} onChange={(e) => setWert(ui, "kg", e.target.value)} aria-label="kg"
+                  className="m text-base px-2" style={{ width: 72, minHeight: 44, background: an ? "rgba(255,255,255,0.15)" : C.beton, color: an ? "#fff" : C.tinte, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+                <span className="m text-xs" style={{ color: an ? C.linie : C.grau }}>kg</span>
+                <input type="number" inputMode="numeric" value={u.wdh} onChange={(e) => setWert(ui, "wdh", e.target.value)} aria-label="Wdh"
+                  className="m text-base px-2" style={{ width: 72, minHeight: 44, background: an ? "rgba(255,255,255,0.15)" : C.beton, color: an ? "#fff" : C.tinte, border: `1px solid ${C.linie}`, borderRadius: 2 }} />
+                <span className="m text-xs" style={{ color: an ? C.linie : C.grau }}>{u.seiten === "jeSeite" ? "Wdh/S" : "Wdh"}</span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      {rundeFertig && r < runden - 1 && (
+        <button onClick={() => setR(r + 1)} className="d uppercase text-lg w-full mt-3"
+          style={{ minHeight: 60, background: C.tinte, color: C.panel, border: `1px solid ${C.tinte}`, borderRadius: 2 }}>
+          Durchgang fertig → {r + 2}
+        </button>
+      )}
     </div>
   );
 }
